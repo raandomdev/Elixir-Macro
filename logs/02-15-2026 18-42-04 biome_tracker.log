@@ -1,0 +1,4 @@
+2026-02-15 18:42:04,171 - ERROR - Failed to load biome data: 404 Client Error: Not Found for url: https://raw.githubusercontent.com/Goldfish-cool/Goldens-Macro/refs/heads/data/biome-data.json
+2026-02-15 18:42:04,274 - ERROR - Failed to load aura data: 404 Client Error: Not Found for url: https://raw.githubusercontent.com/Goldfish-cool/Goldens-Macro/refs/heads/data/aura-data.json
+2026-02-15 18:42:04,386 - ERROR - Failed to load merchant data: 404 Client Error: Not Found for url: https://raw.githubusercontent.com/Goldfish-cool/Goldens-Macro/refs/heads/data/merchant-data.json
+2026-02-15 18:42:04,509 - ERROR - Failed to load biome data: 404 Client Error: Not Found for url: https://raw.githubusercontent.com/Goldfish-cool/Goldens-Macro/refs/heads/data/biome-data.json
