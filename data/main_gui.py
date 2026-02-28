@@ -1,10 +1,9 @@
 import os, sys, json
 import time
 from time import sleep
-from tkinter import messagebox, filedialog
+from tkinter import messagebox, filedialog, ttk
 import tkinter as tk
-from tkinter import ttk
-import tkinter.font as tkfont
+import sv_ttk
 import discord_webhook
 from data import config
 import keyboard, mouse
@@ -87,33 +86,13 @@ MAX_WIDTH = 1000
 class App(tk.Tk):
     def __init__(self, config_key=None):
         super().__init__()
-        # apply lightweight, consistent UI styles
-        def apply_ui_styles(root):
-            style = ttk.Style(root)
-            try:
-                style.theme_use('clam')
-            except Exception:
-                pass
-            default_font = tkfont.nametofont('TkDefaultFont')
-            default_font.configure(family='Segoe UI', size=10)
-            try:
-                tkfont.nametofont('TkTextFont').configure(family='Segoe UI', size=10)
-            except Exception:
-                pass
-            root.configure(bg='#f5f7fa')
-            style.configure('TFrame', background='#f5f7fa')
-            style.configure('TLabel', background='#f5f7fa', padding=4)
-            style.configure('TButton', padding=6)
-            style.configure('TCheckbutton', background='#f5f7fa', padding=4)
-
-        apply_ui_styles(self)
         self.title(f"Elixir Macro v{config.get_current_version()}")
-        self.geometry("800x520")
+        self.geometry("670x335")
         self.resizable(False, False)
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=0)
-
+        sv_ttk.set_theme("dark")
         self.coord_vars = {}
         self.config_key = config_key
         self.begin_x = None
@@ -173,57 +152,43 @@ class App(tk.Tk):
         miscalance_frame.grid(row=0, column=0, sticky="w", padx=(1, 1))
         
         miscalance_title = ttk.Label(master=miscalance_frame, text="Miscellaneous", font=("Segoe UI Semibold", 20, "bold"))
-        miscalance_title.grid(row=0, column=1)
+        miscalance_title.grid(row=0, column=0)
         
         obby = ttk.Checkbutton(master=miscalance_frame, text="Do Obby (30% Luck Boost Every 2 Mins)", 
                               variable=self.tk_var_list['obby']['enabled'],
                               command=self.save_config)
-        obby.grid(row=2, column=1, padx=5, pady=5, sticky="w")
+        obby.grid(row=2, column=0, padx=5, pady=5, sticky="w")
         
         chalice = ttk.Checkbutton(master=miscalance_frame, text="Auto Chalice", 
                                 variable=self.tk_var_list['chalice']['enabled'], state="disabled",
                                 command=self.save_config)
-        chalice.grid(row=3, column=1, padx=5, pady=5, sticky="w")
+        chalice.grid(row=3, column=0, padx=5, pady=5, sticky="w")
 
-        auto_equip = ttk.LabelFrame(master=self.main_tab)
-        auto_equip.grid(row=0, column=1, sticky="w", padx=(5, 0))
-        
-        auto_equip_title = ttk.Label(master=auto_equip, text="Auto Equip", font=("Segoe UI Semibold", 20, "bold"))
+        auto_equip_title = ttk.Label(master=miscalance_frame, text="Auto Equip", font=("Segoe UI Semibold", 20, "bold"))
         auto_equip_title.grid(row=0, column=1)
         
-        enable_auto_equip = ttk.Checkbutton(master=auto_equip, text="Enable Auto Equip", 
+        enable_auto_equip = ttk.Checkbutton(master=miscalance_frame, text="Enable Auto Equip", 
                                           variable=self.tk_var_list['auto_equip']['enabled'],
                                           command=self.save_config)
         enable_auto_equip.grid(row=2, column=1, padx=5, pady=5, sticky="w")
         
-        auto_equip_gui = ttk.Button(master=auto_equip, text="Configure Search", width=43, 
+        auto_equip_gui = ttk.Button(master=miscalance_frame, text="Configure Search", width=25, 
                                   command=self.auto_equip_window)
         auto_equip_gui.grid(column=1, row=3, padx=5, pady=5)
-
-        item_collection_frame = ttk.Frame(master=self.main_tab)
-        item_collection_frame.grid(row=1, pady=(6, 0), sticky="we", columnspan=2, column=0, padx=(1, 0))
         
-        item_collection_title = ttk.Label(master=item_collection_frame, text="Collect Items", 
-                                        font=("Segoe UI Semibold", 20, "bold"))
-        item_collection_title.grid(row=0, padx=5, columnspan=2)
-        
-        enable_collect_items = ttk.Checkbutton(master=item_collection_frame, text="Enable Item Collection", 
+        paths_frame = ttk.LabelFrame(master=self.main_tab)
+        paths_frame.grid(row=1, column=0, sticky="w", padx=(1, 1))
+        enable_collect_items = ttk.Checkbutton(master=paths_frame, text="Enable Item Collection", 
                                              variable=self.tk_var_list['item_collecting']['enabled'],
                                              command=self.save_config)
-        enable_collect_items.grid(row=0, sticky="w", padx=5, pady=5)
+        enable_collect_items.grid(row=0, column=0, sticky="w", padx=5, pady=5)
         
-        spot_collection_frame = ttk.Frame(master=item_collection_frame)
-        spot_collection_frame.grid(row=1, sticky="w", column=1, padx=(64, 1), pady=(5, 7), ipady=5, ipadx=1)
-        
-        for i in range(8):
-            ttk.Checkbutton(master=spot_collection_frame, text=str(i+1), width=4,
-                          variable=self.tk_var_list['item_collecting'][f'spot{i+1}'], 
-                          command=self.save_config,
-                          onvalue='1', offvalue='0').grid(row=2, column=i, sticky='e')
-        
-        assign_clicks = ttk.Button(master=item_collection_frame, text="Assign Clicks", 
+        assign_clicks = ttk.Button(master=paths_frame, text="Assign Clicks", 
                                  command=self.assign_clicks_gui)
-        assign_clicks.grid(row=1, sticky="w", padx=5, pady=5)
+        assign_clicks.grid(row=0, column=1, sticky="w", padx=5, pady=5)
+        pathin_ui = ttk.Button(master=paths_frame, text="Paths",
+                                  command=self.pathing_ui)
+        pathin_ui.grid(row=0, column=2, sticky="w", padx=5, pady=5)
 
     def setup_discord_tab(self):
         def test_webhook():
@@ -254,7 +219,7 @@ class App(tk.Tk):
         webhook_url_label = ttk.Label(master=webhook_frame, text="Webhook URL")
         webhook_url_label.grid(row=2, column=0, padx=5, pady=2, sticky="w")
         
-        webhook_url = ttk.Entry(master=webhook_frame, width=50,
+        webhook_url = ttk.Entry(master=webhook_frame, width=30,
                               textvariable=self.tk_var_list['discord']['webhook']['url'])
         webhook_url.grid(row=2, column=1, padx=5, pady=2)
         webhook_url.bind("<FocusOut>", lambda e: self.save_config())
@@ -262,7 +227,7 @@ class App(tk.Tk):
         ping_id_label = ttk.Label(master=webhook_frame, text="User/Role ID to ping")
         ping_id_label.grid(row=4, column=0, padx=5, pady=2, sticky="w")
         
-        ping_id = ttk.Entry(master=webhook_frame, width=50,
+        ping_id = ttk.Entry(master=webhook_frame, width=30,
                           textvariable=self.tk_var_list['discord']['webhook']['ping_id'])
         ping_id.grid(row=4, column=1, padx=5, pady=2)
         ping_id.bind("<FocusOut>", lambda e: self.save_config())
@@ -270,7 +235,7 @@ class App(tk.Tk):
         ps_link = ttk.Label(master=webhook_frame, text="Private Server Link:")
         ps_link.grid(row=5, column=0, padx=5, pady=2, sticky="w")
         
-        ps_link_entry = ttk.Entry(master=webhook_frame, width=50,
+        ps_link_entry = ttk.Entry(master=webhook_frame, width=30,
                                 textvariable=self.tk_var_list['discord']['webhook']['ps_link'])
         ps_link_entry.grid(row=5, column=1, padx=5, pady=2)
         
@@ -398,32 +363,6 @@ class App(tk.Tk):
                                       command=self.save_config)
         claim_quest.grid(row=3, column=1, padx=5, pady=5, sticky="w")
 
-        aura_settings = ttk.LabelFrame(master=self.settings_tab)
-        aura_settings.grid(row=0, column=1, sticky="n", padx=(5, 0))
-        
-        aura_title = ttk.Label(master=aura_settings, text="Aura Detection", 
-                             font=("Segoe UI Semibold", 20, "bold"))
-        aura_title.grid(row=0, column=1, columnspan=2)
-        
-        enable_detection = ttk.Checkbutton(master=aura_settings, text="Enable Aura Detection", 
-                                         variable=self.tk_var_list['enabled_dectection'],
-                                      command=self.save_config)
-        enable_detection.grid(row=2, column=1, padx=5, pady=5, sticky="w")
-        
-        pings_aura = ttk.Label(master=aura_settings, text="Ping Min:", justify="left")
-        pings_aura.grid(row=3, column=0, padx=5, pady=5, sticky="w")
-        
-        min_entry = ttk.Entry(master=aura_settings, 
-                            textvariable=self.tk_var_list['send_min'], width=8)
-        min_entry.grid(row=3, column=1, padx=5, pady=2, sticky="w")
-        
-        pings_max = ttk.Label(master=aura_settings, text="Ping Max:", justify="left")
-        pings_max.grid(row=4, column=0, padx=5, pady=5, sticky="w")
-        
-        max_entry = ttk.Entry(master=aura_settings, 
-                            textvariable=self.tk_var_list['send_max'], width=8)
-        max_entry.grid(row=4, column=1, padx=5, pady=2, sticky="w")
-
     def setup_merchant_tab(self):
         merchant_frame = ttk.LabelFrame(master=self.merchant_tab, text="Mari")
         merchant_frame.grid(row=0, column=0, sticky="w", padx=(1, 1))
@@ -433,7 +372,7 @@ class App(tk.Tk):
                                    variable=self.tk_var_list['mari']['ping_enabled'],
                                    command=self.save_config,
                                    onvalue='1', offvalue='0').grid(row=2, column=1, padx=5, pady=5, sticky="w")
-        mari_ping_entry = ttk.Entry(master=merchant_frame, textvariable=self.tk_var_list['mari']['ping_id'], width=6).grid(row=2, column=2, padx=5, pady=5, sticky="w")
+        mari_ping_entry = ttk.Entry(state="disabled", master=merchant_frame, textvariable=self.tk_var_list['mari']['ping_id'], width=6).grid(row=2, column=2, padx=5, pady=5, sticky="w")
         
         jester_frame = ttk.LabelFrame(master=self.merchant_tab, text="Jester")
         jester_frame.grid(row=1, column=0, sticky="n", padx=(1, 1))
@@ -477,15 +416,16 @@ class App(tk.Tk):
                               'Speed Potion I', 'Speed Potion II', 'Speed Potion III', 'Lucky Potion I', 
                               'Lucky Potion II', 'Lucky Potion III', 'Heavenly I', 'Heavenly II', 'Warp Potion']
         
-        scheduler_var = self.tk_var_list['item_scheduler_item']['item_name']
-        scheduler_items = ttk.OptionMenu(items_stuff, scheduler_var, scheduler_items_list[0], 
-                                       *scheduler_items_list)
+        #scheduler_var = self.tk_var_list['item_scheduler_item']['item_name']
+        #scheduler_items = ttk.OptionMenu(items_stuff, scheduler_var, scheduler_items_list[0], 
+        #                               *scheduler_items_list)
+        #scheduler_items.grid(row=3, column=0, padx=5, pady=5, sticky="w")
+        scheduler_items = ttk.Entry(master=items_stuff, textvariable=self.tk_var_list['item_scheduler_item']['item_name'], width=20)
         scheduler_items.grid(row=3, column=0, padx=5, pady=5, sticky="w")
-        
         quanity_text = ttk.Label(master=items_stuff, text="Quantity:", justify="left")
         quanity_text.grid(row=4, column=0, padx=5, pady=5, sticky="w")
         
-        quanity = ttk.Entry(master=items_stuff, width=6, 
+        quanity = ttk.Entry(master=items_stuff, width=6,    
                           textvariable=self.tk_var_list['item_scheduler_item']['item_scheduler_quantity'])
         quanity.grid(row=4, column=1, padx=5, pady=2, sticky="w")
 
@@ -499,7 +439,7 @@ class App(tk.Tk):
         biome_config = ttk.Frame(master=self.extras_tab)
         biome_config.grid(row=0, column=2, sticky="n", padx=(5, 0))
         
-        biome_title = ttk.Label(master=biome_config, text="Biome Settings", 
+        biome_title = ttk.Label(master=biome_config, text="Detection", 
                               font=("Segoe UI Semibold", 20, "bold"))
         biome_title.grid(row=0, column=0)
         
@@ -507,53 +447,59 @@ class App(tk.Tk):
                                      variable=self.tk_var_list['biome_detection']['enabled'],
                                       command=self.save_config)
         enable_biome.grid(row=2, column=0, padx=5, pady=5, sticky="w")
+        enable_detection = ttk.Checkbutton(master=biome_config, text="Enable Aura Detection", 
+                                         variable=self.tk_var_list['enabled_dectection'],
+                                      command=self.save_config)
+        enable_detection.grid(row=3, column=0, padx=5, pady=5, sticky="w")
         
+        pings_aura = ttk.Label(master=biome_config, text="Ping Min:", justify="left")
+        pings_aura.grid(row=4, column=0, padx=5, pady=5, sticky="w")
+        
+        min_entry = ttk.Entry(master=biome_config, 
+                            textvariable=self.tk_var_list['send_min'], width=8)
+        min_entry.grid(row=4, column=1, padx=5, pady=2, sticky="w")
+        
+        pings_max = ttk.Label(master=biome_config, text="Ping Max:", justify="left")
+        pings_max.grid(row=5, column=0, padx=5, pady=5, sticky="w")
+        
+        max_entry = ttk.Entry(master=biome_config, 
+                            textvariable=self.tk_var_list['send_max'], width=8)
+        max_entry.grid(row=5, column=1, padx=5, pady=2, sticky="w")
+
         config_biomes = ttk.Button(master=biome_config, text="Configure Biomes",
                               command=self.set_biome_region)
-        config_biomes.grid(row=3, column=0, padx=5, pady=5, sticky="w")
-        # Show current biome region values and allow region assignment
-        biome_x_entry = ttk.Entry(master=biome_config, width=3)
-        biome_x_entry.grid(row=4, column=0, padx=(5, 2), pady=5, sticky="w")
-        biome_x_entry.insert(0, str(config.config_data["clicks"]["biome_region"][0]))
-
-        biome_y_entry = ttk.Entry(master=biome_config, width=3)
-        biome_y_entry.grid(row=4, column=1, padx=(2, 2), pady=5, sticky="w")
-        biome_y_entry.insert(0, str(config.config_data["clicks"]["biome_region"][1]))
-
-        biome_w_entry = ttk.Entry(master=biome_config, width=3)
-        biome_w_entry.grid(row=4, column=2, padx=(2, 2), pady=5, sticky="w")
-        biome_w_entry.insert(0, str(config.config_data["clicks"]["biome_region"][2]))
-
-        biome_h_entry = ttk.Entry(master=biome_config, width=3)
-        biome_h_entry.grid(row=4, column=3, padx=(2, 5), pady=5, sticky="w")
-        biome_h_entry.insert(0, str(config.config_data["clicks"]["biome_region"][3]))
-
-        set_region = ttk.Button(master=biome_config, text="Set Region",
-                    command=lambda: self.start_capture_thread('biome_region', biome_x_entry, biome_y_entry, biome_w_entry, biome_h_entry))
-        set_region.grid(row=5, column=0, columnspan=4, padx=5, pady=5, sticky="w")
+        config_biomes.grid(row=2, column=1, padx=5, pady=5, sticky="w")
         
-        themes_frame = ttk.Frame(master=self.extras_tab)
-        themes_frame.grid(row=0, column=1, sticky="nw", padx=(5, 0))
+        #themes_frame = ttk.Frame(master=self.extras_tab)
+        #themes_frame.grid(row=0, column=1, sticky="nw", padx=(5, 0))
         
-        themes_title = ttk.Label(master=themes_frame, text="Themes", 
-                               font=("Segoe UI Semibold", 20, "bold"))
-        themes_title.grid(row=0, columnspan=2)
+        #themes_title = ttk.Label(master=themes_frame, text="Themes", 
+        #                       font=("Segoe UI Semibold", 20, "bold"))
+        #themes_title.grid(row=0, columnspan=2)
+
+        #available_themes = self.style.theme_names()
+        #current_theme = self.style.theme_use()
+        
+        #change_themes = ttk.Combobox(themes_frame, values=available_themes, state="readonly")
+        #change_themes.grid(row=2, padx=5, pady=5, sticky="w", columnspan=2)
+        #change_themes.set(current_theme)
+        #change_themes.bind('<<ComboboxSelected>>', lambda e: self.change_theme(change_themes.get()))
 
     def setup_credits_tab(self):
         credits_frame = ttk.Frame(master=self.credits_tab, width=570)
         credits_frame.grid(row=0, column=0, padx=(1, 0))
         
         credits_text = """
-Owners/Leading developer:
+Owners:
 Golden (spacedev0572)
 
 Developers:
-Chaseee (chaseee111)
+Golden (spacedev0572) | Chaseee (chaseeee111)
 
 In Contribution:
 This macro was inspired by Dolphsol Macro, the first
 Sol's RNG Macro to be created! (Also he's a chill man!!)
-Radiance Macro, using config.py and the pathing (LPS)
+Radiance Macro, using config.py and the pathing system (LPS)
 """ 
         credits_label = ttk.Label(master=credits_frame, text=credits_text, font=(("Segoe UI", 10)))
         credits_label.grid(row=1, column=1, rowspan=2, padx=56, pady=(17, 30), sticky="n")
@@ -563,8 +509,13 @@ Radiance Macro, using config.py and the pathing (LPS)
         join_server.grid(row=2, column=0, padx=6, pady=(0, 6))
         join_server.bind("<Button-1>", lambda event: webbrowser.open('https://discord.gg/JsMM299RF7'))
     
-    def change_theme(self, theme_name):
-        pass
+    #def change_theme(self, theme_name):
+    #    try:
+    #        self.style.theme_use(theme_name)
+    #        config.config_data['theme'] = theme_name
+    #        config.save_config(config.config_data)
+    #    except Exception as e:
+    #        self.show_message("Theme Error", f"Failed to change theme: {str(e)}", error=True)
 
     def start(self):
         config.save_tk_list(self.tk_var_list)
@@ -580,7 +531,7 @@ Radiance Macro, using config.py and the pathing (LPS)
         self.main_loop.stop()
         self.lift()
     def restart(self):
-        os.execv(sys.executable, [sys.executable, sys.argv[0]])
+        os.execv(sys.executable, ['python', f'"{sys.argv[0]}"'])
 
     def show_message(self, title="", message="", error=False):
         if error:
@@ -859,7 +810,22 @@ Radiance Macro, using config.py and the pathing (LPS)
             y_entry.grid(row=i, column=2, padx=5, pady=2)
 
             ttk.Button(master=crafting_frame, text="Assign Click!", command=lambda key=config_key, x=x_entry, y=y_entry: self.start_capture_thread(key, x, y)).grid(row=i, column=3, padx=5, pady=2)
-            
+
+    def pathing_ui(self):
+        self.path_window = tk.Toplevel()
+        self.path_window.title("Paths Window")
+        self.path_window.attributes("-topmost", True)
+        self.path_window.resizable(False, False)
+        obby_and_chalice_frame = ttk.Labelframe(master=self.path_window, text="Paths")
+        obby_and_chalice_frame.pack(fill="both", expand=True)
+
+        for i in range(8):
+            ttk.Checkbutton(master=obby_and_chalice_frame, text=str(i+1), width=4,
+                          variable=self.tk_var_list['item_collecting'][f'spot{i+1}'], 
+                          command=self.save_config,
+                          onvalue='1', offvalue='0').grid(row=i, column=0, sticky='e')
+        
+
     def save_window_settings(self, window):
         config.save_tk_list(self.tk_var_list)
         config.save_config(config.config_data)
@@ -872,8 +838,8 @@ Radiance Macro, using config.py and the pathing (LPS)
         self.snipping_window = tk.Toplevel()
         self.snipping_window.attributes("-fullscreen", True)
         self.snipping_window.attributes("-alpha", 0.3)
-        #self.snipping_window.config(cursor="cross")
-        self.canvas = ttk.Canvas(self.snipping_window, bg="lightblue", highlightthickness=0)
+        self.snipping_window.config(cursor="cross")
+        self.canvas = tk.Canvas(self.snipping_window, bg="lightblue", highlightthickness=0)
         self.canvas.pack(fill="both", expand=True)
         
         self.x_entry = x_entry
@@ -988,7 +954,7 @@ Radiance Macro, using config.py and the pathing (LPS)
                        variable=self.tk_var_list['biome_alerts'][biome],
                        command=self.save_config, 
                        onvalue="1", offvalue="0").grid(row=i, column=0, padx=5, pady=5, sticky="w")
-
+            
 aura_storage = config.config_data['clicks']['aura_storage']
 regular_tab = config.config_data['clicks']['regular_tab']
 special_tab = config.config_data['clicks']['special_tab']
