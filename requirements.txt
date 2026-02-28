@@ -1,0 +1,11 @@
+pillow
+pyautogui
+requests
+discord-webhook
+numpy
+pytesseract
+easyocr
+ahk
+mouse
+keyboard
+pynput

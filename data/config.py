@@ -2,9 +2,7 @@ import ctypes
 import json
 import os
 import sys
-from tkinter import messagebox
-
-from customtkinter import *
+from tkinter import messagebox, StringVar
 from PIL import Image, ImageDraw
 
 import requests
@@ -118,10 +116,15 @@ def round_corners(im, rad):
     return im
 
 def theme_path():
+    if "paths" not in config_data or "theme" not in config_data["paths"]:
+        return os.path.join(parent_path(), "data", "themes", "solar.json")
     if "/" in config_data["paths"]["theme"] or "\\" in config_data["paths"]["theme"]:
         return config_data["paths"]["theme"]
     else:
-        return os.path.join(parent_path(), config_data["themes"][config_data["paths"]["theme"]])
+        theme_name = config_data["paths"]["theme"]
+        if theme_name in config_data.get("themes", {}):
+            return os.path.join(parent_path(), config_data["themes"][theme_name])
+        return os.path.join(parent_path(), "data", "themes", f"{theme_name.lower()}.json")
 
 def read_theme(key=""):
     with open(theme_path()) as theme_file:

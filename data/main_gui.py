@@ -3,19 +3,16 @@ import time
 from time import sleep
 from tkinter import messagebox, filedialog
 import tkinter as tk
-import ttkbootstrap as ttk
-from ttkbootstrap.constants import *
+from tkinter import ttk
+import tkinter.font as tkfont
 import discord_webhook
 from data import config
 import keyboard, mouse
 from data import Tracker
+from data import ocr_engine
 import asyncio
-import easyocr
 import time
 from PIL import Image, ImageGrab, ImageEnhance
-import numpy as np
-from difflib import SequenceMatcher
-import re
 import threading
 from datetime import datetime, timedelta
 import webbrowser
@@ -23,112 +20,35 @@ import pyautogui as auto
 try:
     if sys.platform == "darwin":
         import mouse, keyboard
+        from pynput.keyboard import Key
         print("macOS detected.. using mouse, keyboard imports.")
     else:
-        from ahk import AHK
-        ahk = AHK()
-        print("Windows detected.. using AutoHotkey import.")
-except:
-    messagebox.showerror("Error", "Error on loading basic imports, please redownload this software and try again.\nIf this continues, please report this to Golden (@spacedev0527).")
+        try:
+            from ahk import AHK
+            ahk = AHK()
+            print("Windows detected.. using AutoHotkey import.")
+        except Exception as ahk_err:
+            print(f"AHK init failed: {ahk_err}. Will use keyboard/mouse fallback.")
+            ahk = None
+except Exception as e:
+    messagebox.showerror("Error", f"Error on loading basic imports: {str(e)}\n\nPlease redownload this software and try again.\nIf this continues, please report this to Golden (@spacedev0527).")
     sys.exit(1)
 
-# Initialize EasyOCR reader - works on both Windows and macOS
-try:
-    ocr_reader = easyocr.Reader(['en'])
-    print("EasyOCR initialized successfully")
-except Exception as e:
-    print(f"EasyOCR initialization failed: {e}")
-    # Fallback to pytesseract if EasyOCR fails
-    try:
-        import pytesseract
-        from PIL import Image
-        print("Fallback to pytesseract initialized")
-        ocr_reader = None
-    except ImportError:
-        messagebox.showerror("OCR Error", "Neither EasyOCR nor pytesseract could be initialized. Please install EasyOCR: pip install easyocr")
-        sys.exit(1)
+# Use enhanced OCR engine
+perform_ocr = ocr_engine.perform_ocr
+search_text_in_ocr = ocr_engine.search_text_in_ocr
+check_ocr_text = ocr_engine.check_ocr_text
+get_ocr_text = ocr_engine.get_ocr_text
 ocr_text = None
-def perform_ocr(image):
-    """
-    Perform OCR using EasyOCR or fallback to pytesseract
-    Works on both Windows and macOS
-    Returns the extracted text in lowercase
-    """
-    global ocr_reader
-    
-    # Enhance image for better OCR
-    enhanced_image = ImageEnhance.Contrast(image).enhance(2.0)
-    enhanced_image = ImageEnhance.Sharpness(enhanced_image).enhance(2.0)
-    
-    if ocr_reader is not None:
-        # Use EasyOCR
-        try:
-            image_array = np.array(enhanced_image)
-            results = ocr_reader.readtext(image_array)
-            text = ' '.join([result[1] for result in results]).strip().lower().replace('\n', ' ')
-            global ocr_text
-            ocr_text = text
-            return text
-        except Exception as e:
-            print(f"EasyOCR error: {e}")
-            return ""
-    else:
-        # Fallback to pytesseract
-        try:
-            import pytesseract
-            text = pytesseract.image_to_string(enhanced_image, config='--psm 6').strip().lower().replace('\n', ' ')
-            return text
-        except Exception as e:
-            print(f"Pytesseract error: {e}")
-            return ""
-
-def search_text_in_ocr(image, search_text):
-    """
-    Search for specific text within OCR results.
-    Returns True if text is found, False otherwise.
-    
-    Args:
-        image: PIL Image to perform OCR on
-        search_text: Text to search for (will be converted to lowercase)
-    
-    Returns:
-        bool: True if search_text is found in the OCR result
-    
-    Example:
-        if search_text_in_ocr(screenshot, "merchant"):
-            # Do something
-    """
-    extracted_text = perform_ocr(image)
-    search_text_lower = search_text.lower().strip()
-    return search_text_lower in extracted_text
-
-def check_ocr_text(x1, y1, x2, y2, search_text):
-    """
-    Take a screenshot of a region and search for text within it.
-    
-    Args:
-        x1, y1: Top-left corner of region
-        x2, y2: Bottom-right corner of region
-        search_text: Text to search for
-    
-    Returns:
-        bool: True if text is found in the region
-    
-    Example:
-        if check_ocr_text(100, 100, 300, 200, "quest"):
-            # Execute quest functions
-    """
-    try:
-        screenshot = ImageGrab.grab(bbox=(x1, y1, x2, y2))
-        return search_text_in_ocr(screenshot, search_text)
-    except Exception as e:
-        print(f"Error in check_ocr_text: {e}")
-        return False
 
 def platform_click(x, y, button='left'):
     """Platform-specific click function"""
     if sys.platform == "win32":
-        ahk.click(x, y, coord_mode="Screen")
+        if ahk:
+            ahk.click(x, y, coord_mode="Screen")
+        else:
+            mouse.move(x, y)
+            mouse.click(button)
     elif sys.platform == "darwin":
         mouse.move(x, y)
         mouse.click(button)
@@ -136,30 +56,59 @@ def platform_click(x, y, button='left'):
 def platform_key_press(key):
     """Platform-specific key press function"""
     if sys.platform == "win32":
-        ahk.send(key)
+        if ahk:
+            ahk.send(key)
+        else:
+            keyboard.write(key)
     elif sys.platform == "darwin":
         keyboard.write(key)
 
 def platform_key_combo(key):
     """Platform-specific key combination function"""
     if sys.platform == "win32":
-        ahk.send(key)
-    elif sys.platform == "darwin":
-        if key == '{Enter}':
-            keyboard.press(Key.enter)
-            keyboard.release(Key.enter)
+        if ahk:
+            ahk.send(key)
         else:
+            keyboard.write(key)
+    elif sys.platform == "darwin":
+        try:
+            if key == '{Enter}':
+                keyboard.press(Key.enter)
+                keyboard.release(Key.enter)
+            else:
+                keyboard.write(key)
+        except NameError:
             keyboard.write(key)
 
 DEFAULT_FONT = "Segoe UI"
 DEFAULT_FONT_BOLD = "Segoe UI Semibold"
 MAX_WIDTH = 1000
 
-class App(ttk.Window):
+class App(tk.Tk):
     def __init__(self, config_key=None):
-        super().__init__(themename=config.config_data["theme"])
+        super().__init__()
+        # apply lightweight, consistent UI styles
+        def apply_ui_styles(root):
+            style = ttk.Style(root)
+            try:
+                style.theme_use('clam')
+            except Exception:
+                pass
+            default_font = tkfont.nametofont('TkDefaultFont')
+            default_font.configure(family='Segoe UI', size=10)
+            try:
+                tkfont.nametofont('TkTextFont').configure(family='Segoe UI', size=10)
+            except Exception:
+                pass
+            root.configure(bg='#f5f7fa')
+            style.configure('TFrame', background='#f5f7fa')
+            style.configure('TLabel', background='#f5f7fa', padding=4)
+            style.configure('TButton', padding=6)
+            style.configure('TCheckbutton', background='#f5f7fa', padding=4)
+
+        apply_ui_styles(self)
         self.title(f"Elixir Macro v{config.get_current_version()}")
-        self.geometry("630x315")
+        self.geometry("800x520")
         self.resizable(False, False)
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=1)
@@ -590,24 +539,16 @@ class App(ttk.Window):
                                font=("Segoe UI Semibold", 20, "bold"))
         themes_title.grid(row=0, columnspan=2)
 
-        available_themes = self.style.theme_names()
-        current_theme = self.style.theme_use()
-        
-        change_themes = ttk.Combobox(themes_frame, values=available_themes, state="readonly")
-        change_themes.grid(row=2, padx=5, pady=5, sticky="w", columnspan=2)
-        change_themes.set(current_theme)
-        change_themes.bind('<<ComboboxSelected>>', lambda e: self.change_theme(change_themes.get()))
-
     def setup_credits_tab(self):
         credits_frame = ttk.Frame(master=self.credits_tab, width=570)
         credits_frame.grid(row=0, column=0, padx=(1, 0))
         
         credits_text = """
-Owners:
+Owners/Leading developer:
 Golden (spacedev0572)
 
 Developers:
-Golden (spacedev0572)
+Chaseee (chaseee111)
 
 In Contribution:
 This macro was inspired by Dolphsol Macro, the first
@@ -623,12 +564,7 @@ Radiance Macro, using config.py and the pathing (LPS)
         join_server.bind("<Button-1>", lambda event: webbrowser.open('https://discord.gg/JsMM299RF7'))
     
     def change_theme(self, theme_name):
-        try:
-            self.style.theme_use(theme_name)
-            config.config_data['theme'] = theme_name
-            config.save_config(config.config_data)
-        except Exception as e:
-            self.show_message("Theme Error", f"Failed to change theme: {str(e)}", error=True)
+        pass
 
     def start(self):
         config.save_tk_list(self.tk_var_list)
@@ -644,7 +580,7 @@ Radiance Macro, using config.py and the pathing (LPS)
         self.main_loop.stop()
         self.lift()
     def restart(self):
-        os.execv(sys.executable, ['python', f'"{sys.argv[0]}"'])
+        os.execv(sys.executable, [sys.executable, sys.argv[0]])
 
     def show_message(self, title="", message="", error=False):
         if error:
@@ -653,7 +589,7 @@ Radiance Macro, using config.py and the pathing (LPS)
             messagebox.showinfo(title=title, message=message)
 
     def open_mari_settings(self):
-        self.mari_window = ttk.Toplevel()
+        self.mari_window = tk.Toplevel()
         self.mari_window.title("Mari Settings")
         self.mari_window.resizable(False, False)
         self.mari_window.attributes('-topmost', True)
@@ -689,7 +625,7 @@ Radiance Macro, using config.py and the pathing (LPS)
             entry.bind("<FocusOut>", lambda e: self.save_config())
         
     def open_jester_settings(self):
-        self.jester_window = ttk.Toplevel()
+        self.jester_window = tk.Toplevel()
         self.jester_window.title("Jester Settings")
         self.jester_window.resizable(False, False)
         self.jester_window.attributes('-topmost', True) 
@@ -732,7 +668,7 @@ Radiance Macro, using config.py and the pathing (LPS)
             entry.bind("<FocusOut>", lambda e: self.save_config())
 
     def open_merchant_calibration(self):
-        self.merchant_window = ttk.Toplevel()
+        self.merchant_window = tk.Toplevel()
         self.merchant_window.title("Merchant Calibration")
         self.merchant_window.resizable(False, False)
         
@@ -787,7 +723,7 @@ Radiance Macro, using config.py and the pathing (LPS)
         save_button.grid(row=len(merchant_cali) + 1, column=0, columnspan=6, pady=10)
 
     def auto_equip_window(self):
-        self.auto_equip_window = ttk.Toplevel()
+        self.auto_equip_window = tk.Toplevel()
         self.auto_equip_window.title("Auto Equip")
         self.auto_equip_window.geometry("250x140")
         self.auto_equip_window.resizable(False, False)
@@ -806,7 +742,7 @@ Radiance Macro, using config.py and the pathing (LPS)
         submit_button.grid(pady=5)
 
     def assign_clicks_gui(self):
-        self.assign_clicks_gui = ttk.Toplevel()
+        self.assign_clicks_gui = tk.Toplevel()
         self.assign_clicks_gui.title("Assign Clicks")
         self.assign_clicks_gui.resizable(False, False)
         self.assign_clicks_gui.attributes("-topmost", True)
@@ -889,7 +825,7 @@ Radiance Macro, using config.py and the pathing (LPS)
                   ).grid(row=7, column=1, padx=5, pady=2)
                   
     def crafting_clicks(self):
-        self.crafting_clicks = ttk.Toplevel()
+        self.crafting_clicks = tk.Toplevel()
         self.crafting_clicks.title("Crafting")
         self.crafting_clicks.attributes("-topmost", True)
         self.crafting_clicks.resizable(False, False)
@@ -933,7 +869,7 @@ Radiance Macro, using config.py and the pathing (LPS)
         config.save_config(config.config_data)
         config.save_tk_list(self.tk_var_list)
     def start_capture_thread(self, config_key, x_entry, y_entry, w_entry=None, h_entry=None):
-        self.snipping_window = ttk.Toplevel()
+        self.snipping_window = tk.Toplevel()
         self.snipping_window.attributes("-fullscreen", True)
         self.snipping_window.attributes("-alpha", 0.3)
         #self.snipping_window.config(cursor="cross")
@@ -1037,7 +973,7 @@ Radiance Macro, using config.py and the pathing (LPS)
                 self.snipping_window.destroy()
         
     def set_biome_region(self):
-        self.biome_window = ttk.Toplevel()
+        self.biome_window = tk.Toplevel()
         self.biome_window.title("Select Biomes")
         self.biome_window.geometry("300x400")
         self.biome_window.resizable(False, False)
@@ -1105,7 +1041,7 @@ def walk_sleep(d):
     sleep(walk_time_conversion(d))
 
 def walk_send(k, t):
-    if config.config_data["settings"]["azerty_mode"] == "1" and azerty_replace_dict[k]:
+    if config.config_data["settings"]["azerty_mode"] == "1" and k in azerty_replace_dict:
         k = azerty_replace_dict[k]
     
     if t == True:
@@ -1328,7 +1264,8 @@ class MainLoop:
                 time.sleep(1)
                 
                 if sys.platform == "win32":
-                    ahk.mouse_drag(x=exit_collection[0], y=exit_collection[1], from_position=(exit_collection[0], exit_collection[1]), button='right', coord_mode="Screen", send_mode="Input")
+                    if ahk:
+                        ahk.mouse_drag(x=exit_collection[0], y=exit_collection[1], from_position=(exit_collection[0], exit_collection[1]), button='right', coord_mode="Screen", send_mode="Input")
                 elif sys.platform == "darwin":
                     mouse.move(exit_collection[0], exit_collection[1])
                     mouse.press(Button.right)
@@ -1382,7 +1319,7 @@ class MainLoop:
             add_button_4 = config.config_data['clicks']['add_button_4']
             craft_button = config.config_data['clicks']['craft_button']
             auto_add_button = config.config_data['clicks']['auto_add_button']
-            if config.config_data["Potion_crafting"] == "1":
+            if config.config_data["potion_crafting"]["potion_crafting"] == "1":
                 def potion_craft_one():
                     if config.config_data['potion_crafting']['item_1'] in ["Fortune", "Speed Potion", "Lucky Potion", "Heavenly", "Godly", "Potion of bound"]:
                         platform_click(potion_tab[0], potion_tab[1])
@@ -1603,7 +1540,7 @@ class MainLoop:
             return None
 
     def item_scheduler(self):
-        if config.config_data['enable_items'] == "1":
+        if config.config_data['item_scheduler_item']['enabled'] == "1":
             try:
                 platform_click(items_storage[0], items_storage[1])
                 sleep(0.55)
@@ -1750,9 +1687,10 @@ class MainLoop:
             item_scheduler_interval = int(config.config_data['item_scheduler_item']['interval'])
             item_scheduler_time = timedelta(minutes=item_scheduler_interval)
         except (ValueError, TypeError):
+            item_scheduler_time = timedelta(minutes=20)
             self.send_webhook(
                 "Configuration Warning",
-                "Invalid item scheduler interval in config. Defaulting to 20 minutes.\nPlease fix this ASAP before the Item {config.config_data['item_scheduler_item']['item_name']}, will be used every 20 Minutes.",
+                f"Invalid item scheduler interval in config. Defaulting to 20 minutes.\nPlease fix this ASAP before the Item {config.config_data['item_scheduler_item']['item_name']}, will be used every 20 Minutes.",
                 0xffff00
             )
 
@@ -1774,22 +1712,23 @@ class MainLoop:
     def send_webhook(self, title, description, color, urgent=False):
             try:
                 
-                if self.config_data["discord"]["enabled"] == "1":
+                if self.config_data["discord"]["webhook"]["enabled"] == "1":
                     self.has_discord_enabled = True
                 else:
                     return
 
                 if self.has_discord_enabled:
-                    discord_webhook = discord_webhook.DiscordWebhook(url=self.discord_webhook)
+                    wh = discord_webhook.DiscordWebhook(url=self.discord_webhook)
                     if urgent: 
-                        discord_webhook.set_content("@<{config.config_data['discord']['webhook']['ping_id']}>")
-                    discord_embed = discord_webhook.DiscordEmbed(title=title, description=description)
-                    discord_embed.set_footer(text=f"Elixir Macro | {config.get_current_version()}")
-                    discord_embed.set_color(color)
-                    discord_webhook.add_embed(discord_embed)
-                    discord_webhook.execute()
+                        ping_id = self.config_data['discord']['webhook']['ping_id']
+                        wh.set_content(f"<@{ping_id}>")
+                    embed = discord_webhook.DiscordEmbed(title=title, description=description)
+                    embed.set_footer(text=f"Elixir Macro | {config.get_current_version()}")
+                    embed.set_color(color)
+                    wh.add_embed(embed)
+                    wh.execute()
             except Exception as e:
-                messagebox.showerror("Error", f"There was a problem starting the macro. Please try again. {e}")
+                messagebox.showerror("Error", f"There was a problem sending webhook. Please try again. {e}")
     
     def activate_window(self, titles=""):
         """Windows-only function to activate a window by title."""

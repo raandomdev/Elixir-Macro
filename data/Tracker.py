@@ -9,118 +9,46 @@ from pathlib import Path
 import discord_webhook as discord
 from datetime import datetime
 from data import config as ok
+from data import ocr_engine
 import pyautogui as auto
 from PIL import Image, ImageGrab, ImageEnhance
-import numpy as np
-from difflib import SequenceMatcher
-import easyocr, sys
+import sys
 from tkinter import messagebox
 try:
+    # 
+    ahk = None
+    mouse = None
+    keyboard = None
     if sys.platform == "darwin":
-        import mouse, keyboard
-        print("macOS detected.. using mouse, keyboard imports.")
+        try:
+            import mouse as _mouse, keyboard as _keyboard
+            mouse = _mouse
+            keyboard = _keyboard
+        except Exception as e:
+            logging.warning("Mouse/keyboard imports failed on macOS: %s", e)
     else:
-        from ahk import AHK
-        ahk = AHK()
-        print("Windows detected.. using AutoHotkey import.")
-except:
-    messagebox.showerror("Error", "Error on loading basic imports, please redownload this software and try again.\nIf this continues, please report this to Golden (@spacedev0527).")
-    sys.exit(1)
-
-# Initialize EasyOCR reader - works on both Windows and macOS
-try:
-    ocr_reader = easyocr.Reader(['en'])
-    print("EasyOCR initialized successfully")
+        try:
+            from ahk import AHK
+            ahk = AHK()
+        except Exception:
+            try:
+                import mouse as _mouse, keyboard as _keyboard
+                mouse = _mouse
+                keyboard = _keyboard
+            except Exception as e:
+                logging.warning("Neither AutoHotkey nor mouse/keyboard available: %s", e)
 except Exception as e:
-    print(f"EasyOCR initialization failed: {e}")
-    # Fallback to pytesseract if EasyOCR fails
-    try:
-        import pytesseract
-        from PIL import Image
-        print("Fallback to pytesseract initialized")
-        ocr_reader = None
-    except ImportError:
-        messagebox.showerror("OCR Error", "Neither EasyOCR nor pytesseract could be initialized. Please install EasyOCR: pip install easyocr")
-        sys.exit(1)
+    logging.warning("Tracker import warning: %s", e)
+
+# Use enhanced OCR engine
+perform_ocr = ocr_engine.perform_ocr
+search_text_in_ocr = ocr_engine.search_text_in_ocr
+check_ocr_text = ocr_engine.check_ocr_text
+get_ocr_text = ocr_engine.get_ocr_text
+
 ocr_text = None
 last_biome = None
 last_aura = None
-def perform_ocr(image):
-    """
-    Perform OCR using EasyOCR or fallback to pytesseract
-    Works on both Windows and macOS
-    Returns the extracted text in lowercase
-    """
-    global ocr_reader
-    
-    # Enhance image for better OCR
-    enhanced_image = ImageEnhance.Contrast(image).enhance(2.0)
-    enhanced_image = ImageEnhance.Sharpness(enhanced_image).enhance(2.0)
-    
-    if ocr_reader is not None:
-        # Use EasyOCR
-        try:
-            image_array = np.array(enhanced_image)
-            results = ocr_reader.readtext(image_array)
-            text = ' '.join([result[1] for result in results]).strip().lower().replace('\n', ' ')
-            global ocr_text
-            ocr_text = text
-            return text
-        except Exception as e:
-            print(f"EasyOCR error: {e}")
-            return ""
-    else:
-        # Fallback to pytesseract
-        try:
-            import pytesseract
-            text = pytesseract.image_to_string(enhanced_image, config='--psm 6').strip().lower().replace('\n', ' ')
-            return text
-        except Exception as e:
-            print(f"Pytesseract error: {e}")
-            return ""
-
-def search_text_in_ocr(image, search_text):
-    """
-    Search for specific text within OCR results.
-    Returns True if text is found, False otherwise.
-    
-    Args:
-        image: PIL Image to perform OCR on
-        search_text: Text to search for (will be converted to lowercase)
-    
-    Returns:
-        bool: True if search_text is found in the OCR result
-    
-    Example:
-        if search_text_in_ocr(screenshot, "merchant"):
-            # Do something
-    """
-    extracted_text = perform_ocr(image)
-    search_text_lower = search_text.lower().strip()
-    return search_text_lower in extracted_text
-
-def check_ocr_text(x1, y1, x2, y2, search_text):
-    """
-    Take a screenshot of a region and search for text within it.
-    
-    Args:
-        x1, y1: Top-left corner of region
-        x2, y2: Bottom-right corner of region
-        search_text: Text to search for
-    
-    Returns:
-        bool: True if text is found in the region
-    
-    Example:
-        if check_ocr_text(100, 100, 300, 200, "quest"):
-            # Execute quest functions
-    """
-    try:
-        screenshot = ImageGrab.grab(bbox=(x1, y1, x2, y2))
-        return search_text_in_ocr(screenshot, search_text)
-    except Exception as e:
-        print(f"Error in check_ocr_text: {e}")
-        return False
 
 
 class Tracker:
@@ -143,7 +71,7 @@ class Tracker:
             if self._thread:
                 self._thread.join(timeout=2)
         except Exception as e:
-            print(f"Error stopping tracker thread: {e}")
+            logging.exception("Error stopping tracker thread: %s", e)
 
     def _monitor_loop(self):
         global last_biome
@@ -163,7 +91,7 @@ class Tracker:
                     img = ImageGrab.grab(bbox=(x, y, x2, y2))
                     text = perform_ocr(img) or ""
                 except Exception as e:
-                    print(f"Tracker OCR capture error: {e}")
+                    logging.exception("Tracker OCR capture error: %s", e)
                     text = ""
 
                 text = (text or "").lower()
@@ -184,7 +112,7 @@ class Tracker:
                             continue
 
                 if detected and detected != last_biome:
-                    print(f"Tracker: biome changed {last_biome} -> {detected}")
+                    logging.info("Tracker: biome changed %s -> %s", last_biome, detected)
                     last_biome = detected
                     # send webhook if configured
                     try:
@@ -197,10 +125,10 @@ class Tracker:
                                 wb.add_embed(embed)
                                 wb.execute()
                     except Exception as e:
-                        print(f"Tracker webhook error: {e}")
+                        logging.exception("Tracker webhook error: %s", e)
 
             except Exception as e:
-                print(f"Tracker monitor loop error: {e}")
+                logging.exception("Tracker monitor loop error: %s", e)
 
             # wait before next poll
             for _ in range(max(1, int(self.poll_interval))):

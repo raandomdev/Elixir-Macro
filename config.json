@@ -406,7 +406,7 @@
     "discord": {
         "webhook": {
             "enabled": "1",
-            "url": "https://discord.com/api/webhooks/1473146260281098383/wSVSUaB8BOCqQ_Kt_FpEUfQ9gzH9N-iK95TDXZPzZ3nZIRoxXbZ6-3DIb9x38RTbsDz1",
+            "url": "https://discord.com/api/webhooks/1477054410717794418/pNMn8m1RxIpuoVFBb8HtQFi_nfZ2l1FE7QIECWKRV0JPJ7XHxYqBoVYwJNag03mBjkqr",
             "ping_id": "1397822076651311174",
             "ps_link": ""
         },
