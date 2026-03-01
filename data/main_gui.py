@@ -45,11 +45,20 @@ def platform_click(x, y, button='left'):
         if ahk:
             ahk.click(x, y, coord_mode="Screen")
         else:
+            try:
+                # prefer pyautogui for smoother, consistent movement when AHK is not available
+                auto.moveTo(int(x), int(y), duration=0.08)
+                auto.click(button=button)
+            except Exception:
+                mouse.move(x, y)
+                mouse.click(button)
+    elif sys.platform == "darwin":
+        try:
+            auto.moveTo(int(x), int(y), duration=0.08)
+            auto.click(button=button)
+        except Exception:
             mouse.move(x, y)
             mouse.click(button)
-    elif sys.platform == "darwin":
-        mouse.move(x, y)
-        mouse.click(button)
 
 def platform_key_press(key):
     """Platform-specific key press function"""
@@ -57,7 +66,10 @@ def platform_key_press(key):
         if ahk:
             ahk.send(key)
         else:
-            keyboard.write(key)
+            try:
+                auto.press(key)
+            except Exception:
+                keyboard.write(key)
     elif sys.platform == "darwin":
         keyboard.write(key)
 
@@ -67,7 +79,14 @@ def platform_key_combo(key):
         if ahk:
             ahk.send(key)
         else:
-            keyboard.write(key)
+            try:
+                # pyautogui.hotkey expects separate keys; when token contains '+' split
+                if '+' in key:
+                    auto.hotkey(*[k.strip() for k in key.split('+')])
+                else:
+                    auto.hotkey(key)
+            except Exception:
+                keyboard.write(key)
     elif sys.platform == "darwin":
         try:
             if key == '{Enter}':
@@ -205,8 +224,9 @@ class App(tk.Tk):
 
     def setup_discord_tab(self):
         def test_webhook():
-            if 'discord.com' in config.config_data["discord"]["webhook"]["url"] and 'https://' in config.config_data["discord"]["webhook"]["url"]:
-                webhook = discord_webhook.DiscordWebhook(url=config.config_data["discord"]["webhook"]["url"])
+            webhook_url = config.config_data.get("discord", {}).get("webhook", {}).get("url", "")
+            if webhook_url and 'discord.com' in webhook_url and 'https://' in webhook_url:
+                webhook = discord_webhook.DiscordWebhook(url=webhook_url)
                 embed = discord_webhook.DiscordEmbed(
                     title="Webhook Test!",
                     description="This webhook is now correctly configured to Elixir Macro!"
@@ -214,6 +234,8 @@ class App(tk.Tk):
                 embed.set_color(0x00ff00)
                 webhook.add_embed(embed)
                 webhook.execute()
+            else:
+                messagebox.showwarning("Warning", "Webhook URL is not configured or invalid. Please enter a valid Discord webhook URL.")
         webhook_frame = ttk.Frame(master=self.discord_tab)
         webhook_frame.grid(row=0, column=0, sticky="news", padx=5, pady=5)
         
@@ -1001,7 +1023,16 @@ lock = threading.Lock()
 
 azerty_replace_dict = {"w":"z", "a":"q"}
 def get_action(file):
-    with open("path.txt") as path_file:
+    import pathlib
+    # Find path.txt in multiple locations
+    path_file_location = "path.txt"
+    if not os.path.exists(path_file_location):
+        app_dir = pathlib.Path(__file__).parent.parent.resolve()
+        alt_path = app_dir / "path.txt"
+        if alt_path.exists():
+            path_file_location = str(alt_path)
+    
+    with open(path_file_location) as path_file:
         with open(f'{path_file.read()}\\paths\\{file}.py') as file:
             return file.read()
     
@@ -1052,13 +1083,14 @@ class MainLoop:
         self.last_item_scheduler = datetime.min
     def start(self):
         try:
-            if self.config_data["discord"]["webhook"]["enabled"] == "1":
-                webhook = discord_webhook.DiscordWebhook(url=self.discord_webhook)
-                embed = discord_webhook.DiscordEmbed(title="Macro Started", description=f"{time.strftime('[%I:%M:%S %p]')}: Macro started.\n\n**Current Version:** {config.get_current_version()}\n**Support server:** https://discord.gg/JsMM299RF7")
-                embed.set_footer(text=f"Elixir Macro | {config.get_current_version()}")
-                embed.set_color(0x64ff5e)
-                webhook.add_embed(embed)
-                webhook.execute()
+            if self.config_data["discord"]["webhook"]["enabled"] == "1" and self.discord_webhook:
+                if 'discord.com' in self.discord_webhook and 'https://' in self.discord_webhook:
+                    webhook = discord_webhook.DiscordWebhook(url=self.discord_webhook)
+                    embed = discord_webhook.DiscordEmbed(title="Macro Started", description=f"{time.strftime('[%I:%M:%S %p]')}: Macro started.\n\n**Current Version:** {config.get_current_version()}\n**Support server:** https://discord.gg/JsMM299RF7")
+                    embed.set_footer(text=f"Elixir Macro | {config.get_current_version()}")
+                    embed.set_color(0x64ff5e)
+                    webhook.add_embed(embed)
+                    webhook.execute()
             print("Starting Macro!")
             self.running.set()
             self.thread = threading.Thread(target=self.loop_process, daemon=True)
@@ -1071,13 +1103,14 @@ class MainLoop:
         except Exception as e:
             messagebox.showerror("Error", f"Error on starting the macro. {e}")
     def stop(self):
-        if self.config_data["discord"]["webhook"]["enabled"] == "1":
-            webhook = discord_webhook.DiscordWebhook(url=self.discord_webhook)
-            embed = discord_webhook.DiscordEmbed(title="Macro Stopped", description=f"{time.strftime('[%I:%M:%S %p]')}: Macro stopped.\n\n**Current Version:** {config.get_current_version()}\n**Support server:** https://discord.gg/JsMM299RF7")
-            embed.set_footer(text=f"Elixir Macro | {config.get_current_version()}", icon_url="https://goldfish-cool.github.io/Goldens-Macro/golden_pfp.png")
-            embed.set_color(0xff0000)
-            webhook.add_embed(embed)
-            webhook.execute()
+        if self.config_data["discord"]["webhook"]["enabled"] == "1" and self.discord_webhook:
+            if 'discord.com' in self.discord_webhook and 'https://' in self.discord_webhook:
+                webhook = discord_webhook.DiscordWebhook(url=self.discord_webhook)
+                embed = discord_webhook.DiscordEmbed(title="Macro Stopped", description=f"{time.strftime('[%I:%M:%S %p]')}: Macro stopped.\n\n**Current Version:** {config.get_current_version()}\n**Support server:** https://discord.gg/JsMM299RF7")
+                embed.set_footer(text=f"Elixir Macro | {config.get_current_version()}", icon_url="https://goldfish-cool.github.io/Goldens-Macro/golden_pfp.png")
+                embed.set_color(0xff0000)
+                webhook.add_embed(embed)
+                webhook.execute()
 
         print("Stopping the whole process...")
         self.running.clear()
@@ -1663,22 +1696,26 @@ class MainLoop:
         if sys.platform != "win32":
             print(f"Window activation not implemented for {sys.platform}")
             return
+        # Try pywinctl first, fall back to pygetwindow if needed
         try:
             import pywinctl as pwc
-        except ImportError:
-            messagebox.showerror(title="Import Error", message=f"Failed to activate: {titles}")
-            return
-
-        windows = pwc.getAllTitles()
-        the_window = titles
-        if the_window not in windows:
-            messagebox.showerror(title="Error", message=f"No window found with title: {titles}")
-        else:
+            windows = pwc.getAllTitles()
             for window in windows:
                 if titles in window:
                     pwc.getWindowsWithTitle(window)[0].activate()
-                    break
-            else:
-                messagebox.showerror(title="Error", message=f"No window found with title containing {titles}")
+                    return
+        except Exception:
+            pass
+
+        try:
+            import pygetwindow as gw
+            wins = gw.getWindowsWithTitle(titles)
+            if wins:
+                wins[0].activate()
+                return
+        except Exception:
+            pass
+
+        messagebox.showerror(title="Error", message=f"No window found with title containing: {titles}")
 
 

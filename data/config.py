@@ -4,11 +4,27 @@ import os
 import sys
 from tkinter import messagebox, StringVar
 from PIL import Image, ImageDraw
+import pathlib
 
 import requests
 
 
-with open("path.txt", "r") as file:
+# Find path.txt in multiple locations
+def get_path_file():
+    """Find path.txt in application directory or current directory"""
+    # Try current directory first
+    if os.path.exists("path.txt"):
+        return "path.txt"
+    # Try application directory
+    app_dir = pathlib.Path(__file__).parent.parent.resolve()
+    path_file = app_dir / "path.txt"
+    if path_file.exists():
+        return str(path_file)
+    # Fallback to current directory
+    return "path.txt"
+
+path_file_location = get_path_file()
+with open(path_file_location, "r") as file:
     config_path = os.path.join(file.read(), "config.json")
 config_data = None
 
@@ -99,7 +115,8 @@ def save_tk_list(tk_var_list):
     save_config(config_data)
 
 def parent_path():
-    with open("path.txt", "r") as file:
+    path_file = get_path_file()
+    with open(path_file, "r") as file:
         return file.read()
 
 def round_corners(im, rad):
