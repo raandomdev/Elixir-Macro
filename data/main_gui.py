@@ -3,7 +3,6 @@ import time
 from time import sleep
 from tkinter import messagebox, filedialog, ttk
 import tkinter as tk
-import sv_ttk
 import discord_webhook
 from data import config
 import keyboard, mouse
@@ -92,7 +91,21 @@ class App(tk.Tk):
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=0)
-        sv_ttk.set_theme("dark")
+        # load Tcl theme file from project root; azure.tcl resides next to app.pyw
+        try:
+            theme_file = os.path.abspath(
+                os.path.join(os.path.dirname(__file__), os.pardir, "azure.tcl")
+            )
+            if not os.path.exists(theme_file):
+                raise FileNotFoundError(f"Theme file not found: {theme_file}")
+            # call on self (Tk instance) rather than tk module
+            self.call("source", theme_file)
+        except Exception as theme_err:
+            messagebox.showwarning(
+                "Theme Load",
+                f"Could not load theme file:\n{theme_err}\nContinuing with default Tk theme."
+            )
+        self.call("set_theme", "dark")
         self.coord_vars = {}
         self.config_key = config_key
         self.begin_x = None
@@ -148,7 +161,7 @@ class App(tk.Tk):
         self.setup_credits_tab()
     
     def setup_main_tab(self):
-        miscalance_frame = ttk.LabelFrame(master=self.main_tab)
+        miscalance_frame = ttk.LabelFrame(master=self.main_tab, text="-")
         miscalance_frame.grid(row=0, column=0, sticky="w", padx=(1, 1))
         
         miscalance_title = ttk.Label(master=miscalance_frame, text="Miscellaneous", font=("Segoe UI Semibold", 20, "bold"))
@@ -271,13 +284,13 @@ class App(tk.Tk):
         option2_var = self.tk_var_list['potion_crafting']['item_2']
         option3_var = self.tk_var_list['potion_crafting']['item_3']
 
-        option1 = ttk.OptionMenu(crafting_frame, option1_var, potion_list[0], *potion_list)
+        option1 = ttk.Entry(crafting_frame, textvariable=option1_var, width=20)
         option1.grid(row=3, column=1, padx=5, pady=5, sticky="w")
         
-        option2 = ttk.OptionMenu(crafting_frame, option2_var, potion_list[0], *potion_list)
+        option2 = ttk.Entry(crafting_frame, textvariable=option2_var, width=20)
         option2.grid(row=4, column=1, padx=5, pady=5, sticky="w")
         
-        option3 = ttk.OptionMenu(crafting_frame, option3_var, potion_list[0], *potion_list)
+        option3 = ttk.Entry(crafting_frame, textvariable=option3_var, width=20)
         option3.grid(row=5, column=1, padx=5, pady=5, sticky="w")
 
         option1_check = ttk.Checkbutton(master=crafting_frame, text="Craft Potion 1", 
@@ -314,7 +327,7 @@ class App(tk.Tk):
         
         crafting_entry = ttk.Entry(master=crafting_frame, 
                                  textvariable=self.tk_var_list['potion_crafting']['current_temporary_auto_add'], 
-                                 width=12)
+                                 width=14)
         crafting_entry.grid(row=3, column=4, padx=5, pady=2, sticky="w")
         
         crafting_interval_time = ttk.Label(master=crafting_frame, text="Crafting interval (minutes):")
@@ -347,11 +360,6 @@ class App(tk.Tk):
                                       variable=self.tk_var_list['settings']['azerty_mode'],
                                       command=self.save_config)
         azerty_layout.grid(row=4, column=0, padx=5, pady=5, sticky="w")
-
-        player_joined = ttk.Checkbutton(master=settings_frame, text="Alert when players join",
-                                        variable=self.tk_var_list['settings']['join_server'],
-                                        command=self.save_config)
-        player_joined.grid(row=5, column=0, padx=5, pady=5, sticky="w")
         
         reset_check = ttk.Checkbutton(master=settings_frame, text="Reset and Align", 
                                     variable=self.tk_var_list['settings']['reset'],
@@ -397,7 +405,7 @@ class App(tk.Tk):
         merchant_time.grid(row=2, column=3, padx=5, pady=5, sticky="w")
         merchant_time.bind("<FocusOut>", lambda e: self.save_config())
 
-        merchant_calibration_button = ttk.Button(state="disabled", master=merchant_wh_frame, text="Merchant Calibration", command=self.open_merchant_calibration).grid(row=3, column=1, padx=5, pady=5, sticky="w")
+        merchant_calibration_button = ttk.Button(state="disabled", master=merchant_wh_frame, text="Merchant Calibration", command=self.open_merchant_calibration).grid(row=2, column=4, padx=5, pady=5, sticky="w")
 
     def setup_extras_tab(self):
         items_stuff = ttk.Frame(master=self.extras_tab)
@@ -500,6 +508,7 @@ In Contribution:
 This macro was inspired by Dolphsol Macro, the first
 Sol's RNG Macro to be created! (Also he's a chill man!!)
 Radiance Macro, using config.py and the pathing system (LPS)
+OysterDetecter (by vexthecoder), using log reading detection.
 """ 
         credits_label = ttk.Label(master=credits_frame, text=credits_text, font=(("Segoe UI", 10)))
         credits_label.grid(row=1, column=1, rowspan=2, padx=56, pady=(17, 30), sticky="n")
@@ -676,11 +685,11 @@ Radiance Macro, using config.py and the pathing system (LPS)
     def auto_equip_window(self):
         self.auto_equip_window = tk.Toplevel()
         self.auto_equip_window.title("Auto Equip")
-        self.auto_equip_window.geometry("250x140")
+        #self.auto_equip_window.geometry("250x140")
         self.auto_equip_window.resizable(False, False)
         self.auto_equip_window.attributes("-topmost", True)
         frame = ttk.Frame(master=self.auto_equip_window)
-        frame.grid(row=0, column=0, sticky="n", padx=(1, 1))
+        frame.pack(expand=True, fill="both")
         ttk.Label(master=frame, text="Enter aura name to be used for search.\nThe first result will be equipped so be specific.").grid(row=0, column=0, columnspan=2, padx=5, pady=5)
         aura_entry = ttk.Entry(master=frame, textvariable=self.tk_var_list['auto_equip']['aura'])
         aura_entry.grid(row=1, column=0, columnspan=2, padx=5, pady=5)
@@ -838,7 +847,7 @@ Radiance Macro, using config.py and the pathing system (LPS)
         self.snipping_window = tk.Toplevel()
         self.snipping_window.attributes("-fullscreen", True)
         self.snipping_window.attributes("-alpha", 0.3)
-        self.snipping_window.config(cursor="cross")
+        #self.snipping_window.config(cursor="cross")
         self.canvas = tk.Canvas(self.snipping_window, bg="lightblue", highlightthickness=0)
         self.canvas.pack(fill="both", expand=True)
         
@@ -941,16 +950,17 @@ Radiance Macro, using config.py and the pathing system (LPS)
     def set_biome_region(self):
         self.biome_window = tk.Toplevel()
         self.biome_window.title("Select Biomes")
-        self.biome_window.geometry("300x400")
+        #self.biome_window.geometry("200x420")
         self.biome_window.resizable(False, False)
         self.biome_window.attributes("-topmost", True)
-    
-        biomes = ["NORMAL", "WINDY", "RAINY", "SNOWY", "SAND STORM", "HELL", "STARFALL", "CORRUPTION", "NULL", "GLITCHED", "DREAMSPACE"]
+        frame = ttk.LabelFrame(master=self.biome_window)
+        frame.pack(expand=True, fill="both")
+        biomes = ["NORMAL", "WINDY", "RAINY", "SNOWY", "SAND STORM", "HELL", "STARFALL", "HEAVEN", "CORRUPTION", "NULL", "GLITCHED", "DREAMSPACE", "CYBERSPACE", "THE CITADEL OF ORDERS"]
         for i, biome in enumerate(biomes):
             state = "disabled" if biome in ["GLITCHED", "DREAMSPACE"] else "normal"
             if biome not in self.tk_var_list['biome_alerts']:
                 self.tk_var_list['biome_alerts'][biome] = tk.StringVar(value="0")
-            ttk.Checkbutton(master=self.biome_window, text=biome, state=state, 
+            ttk.Checkbutton(master=frame, text=biome, state=state, 
                        variable=self.tk_var_list['biome_alerts'][biome],
                        command=self.save_config, 
                        onvalue="1", offvalue="0").grid(row=i, column=0, padx=5, pady=5, sticky="w")
@@ -1029,10 +1039,10 @@ class MainLoop:
         self.thread = None
         # Tracker instance for biome/aura monitoring
         try:
-            self.tracker = Tracker.Tracker()
+            self.tracker = Tracker.BiomeTracker()
         except Exception:
             # fallback if import style differs
-            self.tracker = Tracker()
+            self.tracker = Tracker.BiomeTracker()
         self.last_quest = datetime.min
         self.last_item = datetime.min
         self.last_potion = datetime.min
@@ -1055,7 +1065,7 @@ class MainLoop:
             self.thread.start()
             # start tracker monitoring alongside macro
             try:
-                self.tracker.start_monitoring()
+                self.run_biome_detection()
             except Exception as e:
                 print(f"Failed to start tracker monitoring: {e}")
         except Exception as e:
@@ -1076,6 +1086,9 @@ class MainLoop:
         try:
             if hasattr(self, 'tracker') and self.tracker:
                 self.tracker.stop_monitoring()
+                # if we spun up a thread, join it briefly
+                if hasattr(self, 'tracker_thread') and self.tracker_thread.is_alive():
+                    self.tracker_thread.join(timeout=2)
         except Exception as e:
             print(f"Error stopping tracker: {e}")
 
@@ -1090,68 +1103,17 @@ class MainLoop:
     def run_biome_detection(self):
         print("Starting biome detection (OCR + webhook)...")
         try:
-            # Use OCR functions instead of the Tracker monitoring loop
-            from data import Tracker as tracker_module
-
-            # Get configured biome region: [x, y, w, h]
-            region = config.config_data['clicks']['biome_region'] if 'biome_region' in config.config_data['clicks'] else [0, 0, 0, 0]
-            x, y, w, h = map(int, region)
-            x2, y2 = x + w, y + h
-
-            # Try a direct OCR on the captured region first
-            try:
-                image = tracker_module.ImageGrab.grab(bbox=(x, y, x2, y2))
-                ocr_text = tracker_module.perform_ocr(image) or ""
-            except Exception as e:
-                print(f"OCR capture error: {e}")
-                ocr_text = ""
-
-            ocr_text = (ocr_text or "").lower()
-
-            biomes = [
-                "normal", "windy", "rainy", "snowy", "sand storm",
-                "hell", "starfall", "corruption", "null", "glitched", "dreamspace"
-            ]
-
-            detected = None
-            # Search for known biome keywords in the OCR result
-            for b in biomes:
-                if b in ocr_text:
-                    detected = b
-                    break
-
-            # If not found yet, fall back to the module helper which captures and searches
-            if not detected:
-                for b in biomes:
+            if hasattr(self, "tracker") and self.tracker:
+                # run monitor_logs in its own thread so it has a running event loop
+                def _tracker_runner():
                     try:
-                        if tracker_module.check_ocr_text(x, y, x2, y2, b):
-                            detected = b
-                            break
-                    except Exception as e:
-                        print(f"check_ocr_text error for {b}: {e}")
-                        continue
-
-            if detected:
-                print(f"Detected biome: {detected.upper()}")
-                # avoid spamming: only notify when biome changes
-                last = getattr(tracker_module, 'last_biome', None)
-                if last != detected:
-                    # update last_biome and send webhook
-                    try:
-                        tracker_module.last_biome = detected
-                    except Exception:
-                        pass
-                    desc = f"Detected biome: {detected.upper()} ({time.strftime('%I:%M:%S %p')})"
-                    try:
-                        # green-ish color for biome notifications
-                        self.send_webhook("Biome Change", desc, 0x64ff5e)
-                    except Exception as e:
-                        print(f"Failed to send webhook: {e}")
-                else:
-                    print("Same biome as last detection; no webhook sent.")
+                        asyncio.run(self.tracker.monitor_logs())
+                    except Exception as t_err:
+                        print(f"Tracker thread error: {t_err}")
+                self.tracker_thread = threading.Thread(target=_tracker_runner, daemon=True)
+                self.tracker_thread.start()
             else:
-                print("No biome detected in the selected region.")
-
+                raise RuntimeError("Tracker instance not available")
         except Exception as e:
             print(f"Biome detection error: {e}")
             try:
