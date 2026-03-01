@@ -1,4 +1,5 @@
 import os
+import sys
 import re
 import json
 import requests
@@ -50,7 +51,8 @@ class BiomeTracker:
 
     def _load_config(self):
         try:
-            with open(f"{ok.parent_path()}\\config.json") as f:
+            cfg_path = os.path.join(ok.parent_path(), "config.json")
+            with open(cfg_path) as f:
                 config = json.load(f)
                 for biome in self._load_biome_data():
                     if biome not in config.get("biome_alerts", {}):
@@ -99,7 +101,15 @@ class BiomeTracker:
         by the caller. It will exit its loop when ``self._running`` becomes False.
         """
         self._running = True
-        log_dir = Path(os.getenv("LOCALAPPDATA")) / "Roblox" / "logs"
+        # determine Roblox log directory based on platform
+        if sys.platform == "win32":
+            log_dir = Path(os.getenv("LOCALAPPDATA", "")) / "Roblox" / "logs"
+        elif sys.platform == "darwin":
+            # typical macOS log location; user may need to adjust if Roblox changes
+            log_dir = Path.home() / "Library" / "Logs" / "Roblox"
+        else:
+            # fallback to localappdata style; may not work on Linux
+            log_dir = Path(os.getenv("LOCALAPPDATA", "")) / "Roblox" / "logs"
 
         latest_log = max(log_dir.glob("*.log"), key=os.path.getmtime, default=None)
         if latest_log:
@@ -137,7 +147,7 @@ class BiomeTracker:
         try:
             if ok.config_data["biome_detection"]["enabled"] == "1":
                 self._detect_biome_change(line)
-            elif ok.config_data["enabled_dectection"] == "1":
+            if ok.config_data["enabled_dectection"] == "1":
                 self._check_aura_equipped(line)
             else:
                 return
