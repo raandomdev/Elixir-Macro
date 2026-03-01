@@ -5,7 +5,19 @@ from tkinter import messagebox, filedialog, ttk
 import tkinter as tk
 import discord_webhook
 from data import config
-import keyboard, mouse
+# platform-specific input libraries; load cautiously
+keyboard = None
+mouse = None
+ahk = None
+Key = None
+
+# key constants used by path modules
+try:
+    from pynput.keyboard import Key as _Key
+    Key = _Key
+except Exception:
+    Key = None
+
 from data import Tracker
 from data import ocr_engine
 import asyncio
@@ -15,12 +27,22 @@ import threading
 from datetime import datetime, timedelta
 import webbrowser
 import pyautogui as auto
+
 try:
     if sys.platform == "darwin":
-        import mouse, keyboard
-        from pynput.keyboard import Key
-        print("macOS detected.. using mouse, keyboard imports.")
+        # don't import the `keyboard` package on macOS - it spawns a listener
+        # thread that requires root privileges and crashes if run as normal user.
+        keyboard = None
+        print("macOS detected; using pyautogui/pynput for input. Keyboard module disabled.")
     else:
+        # assume Windows or Linux
+        try:
+            import keyboard as _kbd
+            import mouse as _mouse
+            keyboard = _kbd
+            mouse = _mouse
+        except Exception as import_err:
+            print(f"Warning: keyboard/mouse import failed: {import_err}")
         try:
             from ahk import AHK
             ahk = AHK()
@@ -40,62 +62,67 @@ get_ocr_text = ocr_engine.get_ocr_text
 ocr_text = None
 
 def platform_click(x, y, button='left'):
-    """Platform-specific click function"""
-    if sys.platform == "win32":
-        if ahk:
-            ahk.click(x, y, coord_mode="Screen")
-        else:
-            try:
-                # prefer pyautogui for smoother, consistent movement when AHK is not available
-                auto.moveTo(int(x), int(y), duration=0.08)
-                auto.click(button=button)
-            except Exception:
-                mouse.move(x, y)
-                mouse.click(button)
-    elif sys.platform == "darwin":
+    """Platform-specific click function. Falls back to pyautogui if
+    ``mouse`` module is missing or unsupported."""
+    if sys.platform == "win32" and ahk:
+        ahk.click(x, y, coord_mode="Screen")
+        return
+
+    # use mouse module if available
+    if mouse is not None:
         try:
-            auto.moveTo(int(x), int(y), duration=0.08)
-            auto.click(button=button)
-        except Exception:
             mouse.move(x, y)
             mouse.click(button)
+            return
+        except Exception:
+            pass
+
+    # fallback to pyautogui
+    try:
+        auto.click(x, y, button=button)
+    except Exception:
+        pass
 
 def platform_key_press(key):
-    """Platform-specific key press function"""
-    if sys.platform == "win32":
-        if ahk:
-            ahk.send(key)
-        else:
-            try:
-                auto.press(key)
-            except Exception:
-                keyboard.write(key)
-    elif sys.platform == "darwin":
-        keyboard.write(key)
+    """Platform-specific key press function."""
+    if sys.platform == "win32" and ahk:
+        ahk.send(key)
+        return
+
+    if keyboard is not None:
+        try:
+            keyboard.write(key)
+            return
+        except Exception:
+            pass
+
+    # fallback using pyautogui
+    try:
+        auto.write(key)
+    except Exception:
+        pass
 
 def platform_key_combo(key):
-    """Platform-specific key combination function"""
-    if sys.platform == "win32":
-        if ahk:
-            ahk.send(key)
-        else:
-            try:
-                # pyautogui.hotkey expects separate keys; when token contains '+' split
-                if '+' in key:
-                    auto.hotkey(*[k.strip() for k in key.split('+')])
-                else:
-                    auto.hotkey(key)
-            except Exception:
-                keyboard.write(key)
-    elif sys.platform == "darwin":
+    """Platform-specific key combination function."""
+    if sys.platform == "win32" and ahk:
+        ahk.send(key)
+        return
+
+    if keyboard is not None:
         try:
-            if key == '{Enter}':
-                keyboard.press(Key.enter)
-                keyboard.release(Key.enter)
-            else:
-                keyboard.write(key)
-        except NameError:
             keyboard.write(key)
+            return
+        except Exception:
+            pass
+
+    # fallback to pyautogui
+    try:
+        if key == '{Enter}':
+            auto.press('enter')
+        else:
+            auto.write(key)
+    except Exception:
+        pass
 
 DEFAULT_FONT = "Segoe UI"
 DEFAULT_FONT_BOLD = "Segoe UI Semibold"
@@ -167,9 +194,14 @@ class App(tk.Tk):
         restart_button = ttk.Button(master=buttons_frame, text="Restart - F3", command=self.restart, width=15)
         restart_button.grid(row=0, column=2, padx=4, pady=4)
 
-        keyboard.add_hotkey("F1", self.start)
-        keyboard.add_hotkey("F2", self.stop)
-        keyboard.add_hotkey("F3", self.restart)
+        # register global hotkeys if the keyboard module is available
+        if keyboard is not None:
+            try:
+                keyboard.add_hotkey("F1", self.start)
+                keyboard.add_hotkey("F2", self.stop)
+                keyboard.add_hotkey("F3", self.restart)
+            except Exception:
+                print("Unable to register hotkeys; running without them.")
 
         self.setup_main_tab()
         self.setup_discord_tab()
@@ -224,9 +256,8 @@ class App(tk.Tk):
 
     def setup_discord_tab(self):
         def test_webhook():
-            webhook_url = config.config_data.get("discord", {}).get("webhook", {}).get("url", "")
-            if webhook_url and 'discord.com' in webhook_url and 'https://' in webhook_url:
-                webhook = discord_webhook.DiscordWebhook(url=webhook_url)
+            if 'discord.com' in config.config_data["discord"]["webhook"]["url"] and 'https://' in config.config_data["discord"]["webhook"]["url"]:
+                webhook = discord_webhook.DiscordWebhook(url=config.config_data["discord"]["webhook"]["url"])
                 embed = discord_webhook.DiscordEmbed(
                     title="Webhook Test!",
                     description="This webhook is now correctly configured to Elixir Macro!"
@@ -234,8 +265,6 @@ class App(tk.Tk):
                 embed.set_color(0x00ff00)
                 webhook.add_embed(embed)
                 webhook.execute()
-            else:
-                messagebox.showwarning("Warning", "Webhook URL is not configured or invalid. Please enter a valid Discord webhook URL.")
         webhook_frame = ttk.Frame(master=self.discord_tab)
         webhook_frame.grid(row=0, column=0, sticky="news", padx=5, pady=5)
         
@@ -1023,18 +1052,11 @@ lock = threading.Lock()
 
 azerty_replace_dict = {"w":"z", "a":"q"}
 def get_action(file):
-    import pathlib
-    # Find path.txt in multiple locations
-    path_file_location = "path.txt"
-    if not os.path.exists(path_file_location):
-        app_dir = pathlib.Path(__file__).parent.parent.resolve()
-        alt_path = app_dir / "path.txt"
-        if alt_path.exists():
-            path_file_location = str(alt_path)
-    
-    with open(path_file_location) as path_file:
-        with open(f'{path_file.read()}\\paths\\{file}.py') as file:
-            return file.read()
+    with open("path.txt") as path_file:
+        base = path_file.read().strip()
+        action_path = os.path.join(base, "paths", f"{file}.py")
+        with open(action_path) as f:
+            return f.read()
     
 def walk_time_conversion(d):
     if config.config_data["settings"]["vip+_mode"] == "1":
@@ -1051,10 +1073,20 @@ def walk_send(k, t):
     if config.config_data["settings"]["azerty_mode"] == "1" and k in azerty_replace_dict:
         k = azerty_replace_dict[k]
     
-    if t == True:
-        keyboard.on_press(k)
+    if keyboard is not None:
+        if t:
+            keyboard.on_press(k)
+        else:
+            keyboard.on_release(k)
     else:
-        keyboard.on_release(k)
+        # fallback to pyautogui keyDown/Up
+        try:
+            if t:
+                auto.keyDown(k)
+            else:
+                auto.keyUp(k)
+        except Exception:
+            pass
 
 running = False
 initialiazed = False
@@ -1083,14 +1115,13 @@ class MainLoop:
         self.last_item_scheduler = datetime.min
     def start(self):
         try:
-            if self.config_data["discord"]["webhook"]["enabled"] == "1" and self.discord_webhook:
-                if 'discord.com' in self.discord_webhook and 'https://' in self.discord_webhook:
-                    webhook = discord_webhook.DiscordWebhook(url=self.discord_webhook)
-                    embed = discord_webhook.DiscordEmbed(title="Macro Started", description=f"{time.strftime('[%I:%M:%S %p]')}: Macro started.\n\n**Current Version:** {config.get_current_version()}\n**Support server:** https://discord.gg/JsMM299RF7")
-                    embed.set_footer(text=f"Elixir Macro | {config.get_current_version()}")
-                    embed.set_color(0x64ff5e)
-                    webhook.add_embed(embed)
-                    webhook.execute()
+            if self.config_data["discord"]["webhook"]["enabled"] == "1":
+                webhook = discord_webhook.DiscordWebhook(url=self.discord_webhook)
+                embed = discord_webhook.DiscordEmbed(title="Macro Started", description=f"{time.strftime('[%I:%M:%S %p]')}: Macro started.\n\n**Current Version:** {config.get_current_version()}\n**Support server:** https://discord.gg/JsMM299RF7")
+                embed.set_footer(text=f"Elixir Macro | {config.get_current_version()}")
+                embed.set_color(0x64ff5e)
+                webhook.add_embed(embed)
+                webhook.execute()
             print("Starting Macro!")
             self.running.set()
             self.thread = threading.Thread(target=self.loop_process, daemon=True)
@@ -1103,14 +1134,13 @@ class MainLoop:
         except Exception as e:
             messagebox.showerror("Error", f"Error on starting the macro. {e}")
     def stop(self):
-        if self.config_data["discord"]["webhook"]["enabled"] == "1" and self.discord_webhook:
-            if 'discord.com' in self.discord_webhook and 'https://' in self.discord_webhook:
-                webhook = discord_webhook.DiscordWebhook(url=self.discord_webhook)
-                embed = discord_webhook.DiscordEmbed(title="Macro Stopped", description=f"{time.strftime('[%I:%M:%S %p]')}: Macro stopped.\n\n**Current Version:** {config.get_current_version()}\n**Support server:** https://discord.gg/JsMM299RF7")
-                embed.set_footer(text=f"Elixir Macro | {config.get_current_version()}", icon_url="https://goldfish-cool.github.io/Goldens-Macro/golden_pfp.png")
-                embed.set_color(0xff0000)
-                webhook.add_embed(embed)
-                webhook.execute()
+        if self.config_data["discord"]["webhook"]["enabled"] == "1":
+            webhook = discord_webhook.DiscordWebhook(url=self.discord_webhook)
+            embed = discord_webhook.DiscordEmbed(title="Macro Stopped", description=f"{time.strftime('[%I:%M:%S %p]')}: Macro stopped.\n\n**Current Version:** {config.get_current_version()}\n**Support server:** https://discord.gg/JsMM299RF7")
+            embed.set_footer(text=f"Elixir Macro | {config.get_current_version()}", icon_url="https://goldfish-cool.github.io/Goldens-Macro/golden_pfp.png")
+            embed.set_color(0xff0000)
+            webhook.add_embed(embed)
+            webhook.execute()
 
         print("Stopping the whole process...")
         self.running.clear()
@@ -1224,14 +1254,15 @@ class MainLoop:
                 platform_click(exit_collection[0], exit_collection[1])
                 time.sleep(1)
                 
-                if sys.platform == "win32":
-                    if ahk:
-                        ahk.mouse_drag(x=exit_collection[0], y=exit_collection[1], from_position=(exit_collection[0], exit_collection[1]), button='right', coord_mode="Screen", send_mode="Input")
-                elif sys.platform == "darwin":
-                    mouse.move(exit_collection[0], exit_collection[1])
-                    mouse.press(Button.right)
-                    mouse.move(exit_collection[0], exit_collection[1] + 50)
-                    mouse.release(Button.right)
+                if sys.platform == "win32" and ahk:
+                    ahk.mouse_drag(x=exit_collection[0], y=exit_collection[1], from_position=(exit_collection[0], exit_collection[1]), button='right', coord_mode="Screen", send_mode="Input")
+                else:
+                    # generic fallback using pyautogui for any platform lacking ahk/mouse
+                    try:
+                        auto.moveTo(exit_collection[0], exit_collection[1])
+                        auto.dragTo(exit_collection[0], exit_collection[1] + 50, button='right', duration=0.2)
+                    except Exception:
+                        pass
             except Exception as e:
                 messagebox.showerror("Error", "Error on aligning camera")
         self.reset()
@@ -1696,26 +1727,22 @@ class MainLoop:
         if sys.platform != "win32":
             print(f"Window activation not implemented for {sys.platform}")
             return
-        # Try pywinctl first, fall back to pygetwindow if needed
         try:
             import pywinctl as pwc
-            windows = pwc.getAllTitles()
+        except ImportError:
+            messagebox.showerror(title="Import Error", message=f"Failed to activate: {titles}")
+            return
+
+        windows = pwc.getAllTitles()
+        the_window = titles
+        if the_window not in windows:
+            messagebox.showerror(title="Error", message=f"No window found with title: {titles}")
+        else:
             for window in windows:
                 if titles in window:
                     pwc.getWindowsWithTitle(window)[0].activate()
-                    return
-        except Exception:
-            pass
-
-        try:
-            import pygetwindow as gw
-            wins = gw.getWindowsWithTitle(titles)
-            if wins:
-                wins[0].activate()
-                return
-        except Exception:
-            pass
-
-        messagebox.showerror(title="Error", message=f"No window found with title containing: {titles}")
+                    break
+            else:
+                messagebox.showerror(title="Error", message=f"No window found with title containing {titles}")
 
 
