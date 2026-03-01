@@ -6,6 +6,7 @@ numpy
 pytesseract
 easyocr
 ahk
-mouse
 keyboard
 pynput
+# mouse package only works on Windows platforms
+mouse; sys_platform == "win32"

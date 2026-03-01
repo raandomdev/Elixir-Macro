@@ -22,10 +22,8 @@ def set_path():
                 os.makedirs(application_path, exist_ok=True)
         else:
             application_path = pathlib.Path(__file__).parent.resolve()
-        
-        # Write path.txt to the application directory, not the current directory
-        path_file = application_path / "path.txt"
-        with open(path_file, "w") as file:
+            
+        with open("path.txt", "w") as file:
             file.write(str(application_path))
     except Exception as e:
         error_message = f"Error on trying to set the path: {str(e)}"

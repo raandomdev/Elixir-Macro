@@ -1,5 +1,5 @@
 {
-    "current_version": "1.0.0",
+    "current_version": "1.1.0",
     "ui_key": "\\",
     "send_min": "0",
     "send_max": "0",
@@ -36,90 +36,90 @@
     },
     "clicks": {
         "aura_storage": [
-            "22",
-            "286",
+            "24",
+            "282",
             "295",
             "111"
         ],
         "regular_tab": [
-            "674",
-            "238",
+            "671",
+            "240",
             "0",
             "0"
         ],
         "special_tab": [
-            "900",
-            "238",
+            "899",
+            "236",
             "0",
             "0"
         ],
         "search_bar": [
-            "581",
-            "260",
+            "586",
+            "263",
             "0",
             "0"
         ],
         "aura_first_slot": [
-            "583",
-            "307",
+            "581",
+            "304",
             "0",
             "0"
         ],
         "equip_button": [
-            "443",
+            "450",
             "448",
             "0",
             "0"
         ],
         "collection_menu": [
-            "25",
-            "324",
+            "22",
+            "320",
             "0",
             "0"
         ],
         "exit_collection": [
-            "277",
-            "107"
+            "275",
+            "104"
         ],
         "items_storage": [
-            "21",
-            "368",
+            "26",
+            "362",
             "0",
             "0"
         ],
         "items_tab": [
-            "904",
-            "236",
+            "909",
+            "237",
             "0",
             "0"
         ],
         "items_bar": [
-            "591",
-            "262",
+            "588",
+            "258",
             "0",
             "0"
         ],
         "item_first_slot": [
-            "602",
-            "341",
+            "595",
+            "329",
             "0",
             "0"
         ],
         "item_value": [
-            "405",
-            "414",
+            "401",
+            "409",
             "0",
             "0"
         ],
         "use_button": [
-            "482",
-            "410",
+            "480",
+            "408",
             "0",
             "0"
         ],
         "first_potion_slot": [
-            "974",
-            "259",
+            "537",
+            "121",
             "0",
             "0"
         ],
@@ -202,8 +202,8 @@
             "0"
         ],
         "quest_menu": [
-            "28",
-            "443",
+            "26",
+            "442",
             "0",
             "0"
         ],
@@ -212,26 +212,26 @@
             "267"
         ],
         "first_slot": [
-            "772",
-            "386",
+            "988",
+            "369",
             "0",
             "0"
         ],
         "second_slot": [
-            "783",
-            "423",
+            "988",
+            "424",
             "0",
             "0"
         ],
         "third_slot": [
-            "768",
-            "478",
+            "988",
+            "475",
             "0",
             "0"
         ],
         "claim_button": [
-            "440",
-            "548",
+            "441",
+            "547",
             "0",
             "0"
         ],
@@ -400,14 +400,14 @@
         "craft_potion_1": "1",
         "craft_potion_2": "1",
         "craft_potion_3": "1",
-        "potion_crafting": "1",
+        "potion_crafting": "0",
         "potion_item_crafting": "0"
     },
     "discord": {
         "webhook": {
             "enabled": "1",
-            "url": "https://discord.com/api/webhooks/1477054410717794418/pNMn8m1RxIpuoVFBb8HtQFi_nfZ2l1FE7QIECWKRV0JPJ7XHxYqBoVYwJNag03mBjkqr",
-            "ping_id": "1397822076651311174",
+            "url": "",
+            "ping_id": "",
             "ps_link": ""
         },
         "bot": {
@@ -422,8 +422,8 @@
     "auto_buy_items": "1",
     "item_scheduler_item": {
         "enabled": "0",
-        "interval": "20",
-        "item_name": "None",
+        "interval": "25",
+        "item_name": "biome",
         "item_scheduler_quantity": "10"
     },
     "important_only": "1",
