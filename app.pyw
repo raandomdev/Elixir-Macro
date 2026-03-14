@@ -8,6 +8,10 @@ import threading
 import tkinter as tk
 from datetime import datetime, timedelta
 from tkinter import messagebox
+import requests
+import re
+import logging
+from pathlib import Path
 
 # Third-party imports
 try:
@@ -38,12 +42,8 @@ except Exception as e:
     messagebox.showerror("Error", f"Platform automation import failed: {e}")
     sys.exit(1)
 
-# Prevent .pyc files
 sys.dont_write_bytecode = True
 
-# ----------------------------------------------------------------------
-# Configuration management (replaces data.config)
-# ----------------------------------------------------------------------
 CONFIG_FILE = "config.json"
 CURRENT_VERSION = "1.1.2"
 
@@ -58,6 +58,37 @@ def get_config_path():
         base = pathlib.Path(__file__).parent.resolve()
     return base / CONFIG_FILE
 
+def set_path():
+    """Create path.txt with application directory."""
+    try:
+        if getattr(sys, 'frozen', False):
+            base = pathlib.Path(sys.executable).parent.resolve()
+            if "_MEIPASS" in str(base) or "_temp_" in str(base):
+                base = pathlib.Path(os.path.expanduser("~")) / "Documents" / "Goldens_Macro"
+                base.mkdir(exist_ok=True)
+        else:
+            base = pathlib.Path(__file__).parent.resolve()
+        path_file = base / "path.txt"
+        with open(path_file, "w") as f:
+            f.write(str(base))
+        (base / "paths").mkdir(exist_ok=True)
+    except Exception as e:
+        messagebox.showerror("Error", f"Could not set path: {e}")
+
+# ----------------------------------------------------------------------
+# Deep merge utility
+# ----------------------------------------------------------------------
+def deep_merge(a, b):
+    """Recursively merge dict b into dict a (modifies a in place)."""
+    for k in b:
+        if k in a and isinstance(a[k], dict) and isinstance(b[k], dict):
+            deep_merge(a[k], b[k])
+        else:
+            a[k] = b[k]
+
+# ----------------------------------------------------------------------
+# Configuration handling
+# ----------------------------------------------------------------------
 def read_config():
     """Load configuration from JSON file. Return default if missing."""
     default_config = {
@@ -170,13 +201,6 @@ def read_config():
         try:
             with open(cfg_path, 'r') as f:
                 user_cfg = json.load(f)
-                # deep merge (simple recursive update)
-                def deep_merge(a, b):
-                    for k in b:
-                        if k in a and isinstance(a[k], dict) and isinstance(b[k], dict):
-                            deep_merge(a[k], b[k])
-                        else:
-                            a[k] = b[k]
                 deep_merge(default_config, user_cfg)
         except:
             pass
@@ -194,9 +218,6 @@ def save_config(cfg):
 # Load config on module import
 config_data = read_config()
 
-# ----------------------------------------------------------------------
-# OCR engine (replaces data.ocr_engine)
-# ----------------------------------------------------------------------
 def perform_ocr(x, y, w, h):
     """Capture screen region and return recognized text."""
     try:
@@ -224,99 +245,326 @@ def get_ocr_text(x, y, w, h):
 # Biome tracker (replaces data.Tracker)
 # ----------------------------------------------------------------------
 class BiomeTracker:
-    """Monitor Roblox logs for biome changes and send Discord alerts."""
+    def __init__(self, config):
+        self.config = config                     # reference to global config_data
+        self.biomes = self._load_biome_data()
+        self.auras = self._load_aura_data()
+        # self.merchant = self._load_merchant_data()   # (commented out)
+        self.is_merchant = False
+        self.merchant_name = ""
+        self.current_biome = None
+        self.biome_counts = {b["name"]: 0 for b in self.biomes.values()}
+        self.webhook_url = self.config['discord']['webhook']['url']
+        self.private_server_link = self.config['discord']['webhook']['ps_link']
+        self.user_id = self.config['discord']['webhook']['ping_id']
+        self.last_aura = None
+        self.last_processed_position = 0
+        self.last_sent_biome = None
+        self.last_sent_aura = None
+        self.create_log_file()
+        self._running = False
 
-    def __init__(self):
-        self.running = False
-        self.last_position = 0
-        self.log_path = self._find_log_path()
-        self.webhook_url = config_data["discord"]["webhook"]["url"]
-        self.ping_id = config_data["discord"]["webhook"]["ping_id"]
+    def create_log_file(self):
+        log_dir = Path("logs")
+        log_dir.mkdir(exist_ok=True)
+        timestamp = datetime.now().strftime("%m-%d-%Y %H-%M-%S")
+        log_filename = log_dir / f"{timestamp} biome_tracker.log"
+        logging.basicConfig(
+            level=logging.INFO,
+            format="%(asctime)s - %(levelname)s - %(message)s",
+            handlers=[logging.FileHandler(log_filename), logging.StreamHandler()],
+            force=True,
+        )
 
-    def _find_log_path(self):
-        """Locate Roblox player log (platform-specific)."""
+    def _load_biome_data(self):
+        try:
+            response = requests.get("https://raw.githubusercontent.com/vexsyx/OysterDetector/refs/heads/main/data/biome-data.json", timeout=5)
+            response.raise_for_status()
+            biome_list = response.json()
+            logging.info(f"Loaded biome data from {response.url}")
+            return {biome["name"]: biome for biome in biome_list}
+        except Exception as e:
+            logging.error(f"Failed to load biome data: {str(e)}")
+            return {}
+
+    def _load_aura_data(self):
+        try:
+            response = requests.get("https://raw.githubusercontent.com/vexsyx/OysterDetector/refs/heads/main/data/aura-data.json", timeout=5)
+            response.raise_for_status()
+            aura_list = response.json()
+            logging.info(f"Loaded aura data from {response.url}")
+            return {aura["identifier"]: aura for aura in aura_list}
+        except Exception as e:
+            logging.error(f"Failed to load aura data: {str(e)}")
+            return {}
+
+    # Cross‑platform Roblox log directory detection
+    def _get_log_dir(self):
         if sys.platform == "win32":
             local_app_data = os.getenv('LOCALAPPDATA')
             if local_app_data:
-                base = pathlib.Path(local_app_data) / "Roblox" / "logs"
-                if base.exists():
-                    logs = list(base.glob("*.log"))
-                    if logs:
-                        # return the most recent
-                        return max(logs, key=os.path.getmtime)
+                return Path(local_app_data) / "Roblox" / "logs"
         elif sys.platform == "darwin":
-            # macOS typical location
-            base = pathlib.Path.home() / "Library" / "Logs" / "Roblox"
-            if base.exists():
-                logs = list(base.glob("*.log"))
-                if logs:
-                    return max(logs, key=os.path.getmtime)
+            return Path.home() / "Library" / "Logs" / "Roblox"
         return None
 
     async def monitor_logs(self):
-        """Async loop that reads log file and detects biome changes."""
-        if not self.log_path:
-            print("Roblox log not found.")
+        """Begin monitoring the Roblox log files until stopped via `stop_monitoring`."""
+        self._running = True
+        log_dir = self._get_log_dir()
+        if not log_dir or not log_dir.exists():
+            logging.error("Roblox log directory not found.")
             return
-        self.running = True
-        biome_patterns = {
-            "NORMAL": ["Biome changed to Normal"],
-            "WINDY": ["Biome changed to Windy"],
-            "RAINY": ["Biome changed to Rainy"],
-            "SNOWY": ["Biome changed to Snowy"],
-            "SAND STORM": ["Biome changed to Sandstorm"],
-            "HELL": ["Biome changed to Hell"],
-            "STARFALL": ["Biome changed to Starfall"],
-            "HEAVEN": ["Biome changed to Heaven"],
-            "CORRUPTION": ["Biome changed to Corruption"],
-            "NULL": ["Biome changed to Null"],
-            "GLITCHED": ["Biome changed to Glitched"],
-            "DREAMSPACE": ["Biome changed to Dreamspace"],
-            "CYBERSPACE": ["Biome changed to Cyberspace"],
-            "THE CITADEL OF ORDERS": ["Biome changed to The Citadel of Orders", "Biome changed to Citadel"]
-        }
-        while self.running:
+
+        latest_log = max(log_dir.glob("*.log"), key=os.path.getmtime, default=None)
+        if latest_log:
+            self.last_processed_position = latest_log.stat().st_size
+        else:
+            self.last_processed_position = 0
+
+        while self._running:
             try:
-                if not self.log_path.exists():
-                    self.log_path = self._find_log_path()
-                    await asyncio.sleep(2)
+                latest_log = max(log_dir.glob("*.log"), key=os.path.getmtime, default=None)
+                if not latest_log:
+                    await asyncio.sleep(5)
                     continue
-                with open(self.log_path, 'r', encoding='utf-8', errors='ignore') as f:
-                    f.seek(self.last_position)
+
+                with open(latest_log, "r", errors="ignore") as f:
+                    if latest_log.stat().st_size < self.last_processed_position:
+                        self.last_processed_position = 0
+
+                    f.seek(self.last_processed_position)
                     lines = f.readlines()
-                    self.last_position = f.tell()
-                for line in lines:
-                    for biome, patterns in biome_patterns.items():
-                        if any(p in line for p in patterns):
-                            if config_data["biome_alerts"].get(biome) == "1":
-                                self._send_alert(biome)
+                    self.last_processed_position = f.tell()
+
+                    for line in lines:
+                        await self._process_log_entry(line)
+
                 await asyncio.sleep(1)
+
             except Exception as e:
-                print(f"Log monitor error: {e}")
+                logging.error(f"Log monitoring error: {str(e)}")
                 await asyncio.sleep(5)
 
-    def _send_alert(self, biome):
-        """Send Discord webhook for biome change."""
-        if config_data["discord"]["webhook"]["enabled"] != "1" or not self.webhook_url:
+    async def _process_log_entry(self, line):
+        try:
+            if self.config["biome_detection"]["enabled"] == "1":
+                self._detect_biome_change(line)
+            elif self.config["enabled_dectection"] == "1":
+                self._check_aura_equipped(line)
+            # else: ignore
+        except Exception as e:
+            logging.error(f"Log processing error: {str(e)}")
+
+    def _detect_biome_change(self, line):
+        if "[BloxstrapRPC]" not in line:
             return
-        webhook = discord_webhook.DiscordWebhook(url=self.webhook_url)
-        if self.ping_id:
-            webhook.set_content(f"<@{self.ping_id}>")
-        embed = discord_webhook.DiscordEmbed(
-            title="Biome Detected!",
-            description=f"**{biome}** biome has appeared.",
-            color=0xffaa00
-        )
-        embed.set_footer(text=f"Elixir Macro | {CURRENT_VERSION}")
-        webhook.add_embed(embed)
-        webhook.execute()
+
+        try:
+            json_str = line.split("[BloxstrapRPC] ")[1]
+            data = json.loads(json_str)
+            hover_text = data.get("data", {}).get("largeImage", {}).get("hoverText", "")
+
+            if hover_text in self.biomes and self.current_biome != hover_text:
+                self._handle_new_biome(hover_text)
+        except (IndexError, json.JSONDecodeError):
+            pass
+        except Exception as e:
+            logging.error(f"Biome detection error: {str(e)}")
+
+    def _handle_new_biome(self, biome_name):
+        try:
+            self.current_biome = biome_name
+            self.biome_counts[biome_name] += 1
+            logging.info(f"Biome detected: {biome_name}")
+
+            if biome_name != self.last_sent_biome:
+                biome_data = self.biomes[biome_name]
+
+                if biome_name in ["GLITCHED", "DREAMSPACE"]:
+                    self._send_webhook(
+                        title="Biome Detected",
+                        description=f"# - {biome_name}",
+                        color=int(biome_data["visuals"]["primary_hex"], 16),
+                        thumbnail=biome_data["visuals"]["preview_image"],
+                        urgent=True,
+                        is_aura=False,
+                    )
+                else:
+                    if self.config['biome_alerts'].get(biome_name) == "1":
+                        self._send_webhook(
+                            title="Biome Detected",
+                            description=f"# - {biome_name}",
+                            color=int(biome_data["visuals"]["primary_hex"], 16),
+                            thumbnail=biome_data["visuals"]["preview_image"],
+                            urgent=False,
+                            is_aura=False,
+                        )
+
+                self.last_sent_biome = biome_name
+
+        except KeyError:
+            logging.warning(f"Received unknown biome: {biome_name}")
+        except Exception as e:
+            logging.error(f"Biome handling error: {str(e)}")
+
+    def _check_aura_equipped(self, line):
+        if "[BloxstrapRPC]" not in line:
+            return
+
+        try:
+            json_str = line.split("[BloxstrapRPC] ")[1]
+            data = json.loads(json_str)
+            state = data.get("data", {}).get("state", "")
+
+            match = re.search(r'Equipped "(.*?)"', state)
+            if match and (aura_name := match.group(1)) in self.auras:
+                self._process_aura(aura_name)
+        except (IndexError, json.JSONDecodeError):
+            pass
+        except Exception as e:
+            logging.error(f"Aura check error: {str(e)}")
+
+    def _process_aura(self, aura_name):
+        try:
+            aura = self.auras[aura_name]
+            aura_data = aura["properties"]
+            visuals = aura.get("visuals", {})
+            thumbnail = visuals.get("preview_image")
+
+            base_chance = aura_data["base_chance"]
+            rarity = base_chance
+            obtained_biome = None
+
+            biome_amplifier = aura_data.get("biome_amplifier", ["None", 1])
+
+            if biome_amplifier[0] != "None" and (
+                self.current_biome == biome_amplifier[0]
+                or self.current_biome == "GLITCHED"
+            ):
+                rarity /= biome_amplifier[1]
+                obtained_biome = self.current_biome
+
+            rarity = int(rarity)
+
+            if aura_data.get("rank") == "challenged":
+                color = 0x808090
+            else:
+                if rarity <= 999:
+                    color = 0xFFFFFF
+                elif rarity <= 9999:
+                    color = 0xFFC0CB
+                elif rarity <= 99998:
+                    color = 0xFFA500
+                elif rarity <= 999999:
+                    color = 0xFFFF00
+                elif rarity <= 9999999:
+                    color = 0xFF1493
+                elif rarity <= 99999998:
+                    color = 0x00008B
+                elif rarity <= 999999999:
+                    color = 0x8B0000
+                else:
+                    color = 0x00FFFF
+
+            fields = []
+            if base_chance == 0:
+                rarity_str = "Unobtainable"
+            else:
+                rarity_str = f"1 in {rarity:,}"
+            fields.append({"name": "Rarity", "value": rarity_str, "inline": True})
+
+            if obtained_biome:
+                fields.append({"name": "Obtained From", "value": obtained_biome, "inline": True})
+
+            logging.info(f"Aura equipped: {aura_name} (1 in {rarity:,})")
+
+            if aura_name != self.last_sent_aura:
+                self._send_webhook(
+                    title="**Aura Detection**",
+                    description=f"## {time.strftime('[%I:%M:%S %p]')} \n ## > Aura found/last equipped: {aura_name}",
+                    color=color,
+                    thumbnail=thumbnail,
+                    is_aura=True,
+                    fields=fields,
+                )
+                self.last_sent_aura = aura_name
+
+        except KeyError as e:
+            logging.warning(f"Missing aura property: {str(e)}")
+        except ZeroDivisionError:
+            logging.error("Invalid biome amplifier value (division by zero)")
+        except Exception as e:
+            logging.error(f"Aura processing error: {str(e)}")
+
+    def _send_webhook(
+        self, title, description, color, thumbnail=None, urgent=False, is_aura=False, fields=None
+    ):
+        if not self.webhook_url:
+            logging.error("Webhook URL not set.")
+            return
+
+        try:
+            current_time = datetime.now().isoformat()
+
+            embed = {
+                "title": title,
+                "description": description,
+                "color": color,
+                "timestamp": current_time,
+                "footer": {"text": "Goldens Sol's Macro", "icon_url": "https://goldfish-cool.github.io/Goldens-Macro/golden_pfp.png"},
+            }
+
+            if fields is not None:
+                embed["fields"] = fields
+            else:
+                if not is_aura:
+                    ps_link = self.private_server_link if self.private_server_link.strip() else "(no private server link)"
+                    embed["fields"] = [{"name": "Private Server Link", "value": ps_link}]
+
+            if thumbnail:
+                embed["thumbnail"] = {"url": thumbnail}
+
+            content = ""
+            if urgent:
+                content += "@everyone "
+            if is_aura and self.user_id:
+                content += f"<@{self.user_id}>"
+
+            payload = {"content": content.strip(), "embeds": [embed]}
+
+            async def send():
+                try:
+                    response = await asyncio.to_thread(requests.post, self.webhook_url, json=payload, timeout=5)
+                    if response.status_code == 429:
+                        retry_after = response.json().get("retry_after", 5)
+                        logging.warning(f"Rate limited - retrying in {retry_after}s")
+                        await asyncio.sleep(retry_after)
+                        await send()
+                    response.raise_for_status()
+                except Exception as e:
+                    logging.error(f"Webhook failed: {str(e)}")
+
+            asyncio.create_task(send())
+        except Exception as e:
+            logging.error(f"Webhook creation error: {str(e)}")
 
     def stop_monitoring(self):
-        self.running = False
+        """Signal the log‑monitoring loop to exit."""
+        self._running = False
 
-# ----------------------------------------------------------------------
-# Global helpers (from original app.pyw)
-# ----------------------------------------------------------------------
+    def update_biome_counts(self):
+        # Kept for compatibility – returns a default dict
+        biomes = {
+            "NORMAL": 0, "WINDY": 0, "SNOWY": 0, "RAINY": 0,
+            "HELL": 0, "SAND STORM": 0, "NULL": 0, "STARFALL": 0,
+            "CORRUPTION": 0, "GLITCHED": 0, "DREAMSPACE": 0
+        }
+        return biomes
+
+    def log(self, message):
+        logging.info(message)
+
 def set_path():
     """Create path.txt with application directory."""
     try:
@@ -332,8 +580,6 @@ def set_path():
             f.write(str(base))
     except Exception as e:
         messagebox.showerror("Error", f"Could not set path: {e}")
-
-azerty_replace_dict = {"w": "z", "a": "q"}
 
 def platform_click(x, y, button='left'):
     x, y = int(x), int(y)
@@ -389,6 +635,8 @@ def platform_key_combo(key):
         except:
             keyboard.write(key)
 
+azerty_replace_dict = {"w": "z", "a": "q"}
+
 def get_action(file):
     """Read pathing script from paths folder."""
     try:
@@ -416,10 +664,9 @@ def walk_send(k, t):
     if config_data["settings"]["azerty_mode"] == "1" and k in azerty_replace_dict:
         k = azerty_replace_dict[k]
     if t:
-        keyboard.on_press_key(k, lambda _: None)  # dummy
+        keyboard.on_press_key(k, lambda _: None)
     else:
         keyboard.on_release_key(k, lambda _: None)
-
 # ----------------------------------------------------------------------
 # MainLoop class (core macro logic)
 # ----------------------------------------------------------------------
@@ -428,7 +675,7 @@ class MainLoop:
         self.config_data = config_data
         self.running = threading.Event()
         self.thread = None
-        self.tracker = BiomeTracker()
+        self.tracker = BiomeTracker(config_data)   # pass config
         self.tracker_thread = None
         self.last_quest = datetime.min
         self.last_potion = datetime.min
@@ -533,8 +780,9 @@ class MainLoop:
             platform_click(*c['exit_collection'])
             time.sleep(1)
             if sys.platform == "win32" and ahk:
-                ahk.mouse_drag(x=c['exit_collection'][0], y=c['exit_collection'][1]+50,
+                ahk.mouse_drag(
                                from_position=(c['exit_collection'][0], c['exit_collection'][1]),
+                               x=c['exit_collection'][0], y=c['exit_collection'][1]+50,
                                button='right', coord_mode="Screen")
             elif sys.platform == "darwin":
                 mouse.move(c['exit_collection'][0], c['exit_collection'][1])
@@ -763,7 +1011,7 @@ class CoordinateCapture:
         self.root.destroy()
 
 # ----------------------------------------------------------------------
-# API for webview
+# API for webview (FIXED)
 # ----------------------------------------------------------------------
 class Api:
     def __init__(self):
@@ -778,16 +1026,22 @@ class Api:
             self.hotkeys_registered = True
 
     def update_status(self, state, text):
-        webview.evaluate_js(f"window.setStatus('{state}', '{text}')")
+        try:
+            webview.active_window().evaluate_js(f"window.setStatus('{state}', '{text}')")
+        except Exception as e:
+            print(f"update_status error: {e}")
 
     def show_toast(self, message, duration=3000):
-        webview.evaluate_js(f"window.showToast('{message}', {duration})")
+        try:
+            webview.active_window().evaluate_js(f"window.showToast('{message}', {duration})")
+        except Exception as e:
+            print(f"show_toast error: {e}")
 
     def get_config(self):
         return config_data
 
     def save_config(self, new_config):
-        config_data.update(new_config)
+        deep_merge(config_data, new_config)
         save_config(config_data)
         self.main_loop.config_data = config_data
         return {"status": "ok"}
@@ -805,10 +1059,28 @@ class Api:
         return {"status": "stopped"}
 
     def restart_macro(self):
+        """Stop the macro and then restart the entire application process."""
         self.stop_macro()
-        time.sleep(1)
-        self.start_macro()
-        return {"status": "restarted"}
+        # Give a moment for the UI to update, then restart the process
+        threading.Timer(0.5, self._do_restart).start()
+        return {"status": "restarting"}
+
+    def _do_restart(self):
+        """Replace the current process with a new instance, handling spaces in paths."""
+        # Change to the script's directory to avoid path issues
+        script_dir = pathlib.Path(__file__).parent.resolve()
+        os.chdir(script_dir)
+
+        python = sys.executable
+        if getattr(sys, 'frozen', False):
+            # Frozen executable (PyInstaller)
+            args = [python] + sys.argv
+        else:
+            # Running as a script – pass the full path to this file
+            args = [python, __file__] + sys.argv[1:]
+
+        # Use execv to replace the current process
+        os.execv(python, args)
 
     def test_webhook(self):
         url = config_data.get("discord", {}).get("webhook", {}).get("url", "")
@@ -854,7 +1126,7 @@ class Api:
             config_data["item_collecting"][k] = v
         save_config(config_data)
         return {"status": "ok"}
-
+    
 HTML = """<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1295,60 +1567,79 @@ window.setStatus = function(state, text) {
     stext.textContent = text;
 };
 
-function setConfigValues(config, prefix = '') {
-    for (const [key, value] of Object.entries(config)) {
-        const id = prefix ? prefix + '__' + key : key;
-        const element = document.getElementById(id);
-        if (element) {
-            if (element.type === 'checkbox') {
-                element.checked = value === '1' || value === true;
-            } else {
-                element.value = value;
-            }
-        } else if (typeof value === 'object' && value !== null) {
-            setConfigValues(value, id);
+
+// --- Helper: set a single input value based on its ID and config ---
+function setInputFromConfig(input) {
+    const id = input.id;
+    if (!id || id === 'toast') return;
+
+    const parts = id.split('__');
+    let value = config_data;
+    for (let part of parts) {
+        if (value && value.hasOwnProperty(part)) {
+            value = value[part];
+        } else {
+            return; // path not found
         }
+    }
+
+    if (input.type === 'checkbox') {
+        input.checked = (value === '1' || value === true);
+    } else {
+        input.value = value !== undefined ? value : '';
     }
 }
 
-function gatherConfig() {
+// --- New setConfigValues: directly iterate over all inputs ---
+window.setConfigValues = function(config) {
+    window.config_data = config; // store globally for later use (e.g., modals)
+    const inputs = document.querySelectorAll('input, select, textarea');
+    inputs.forEach(input => setInputFromConfig(input));
+};
+
+// --- gatherConfig: collect all inputs into nested object ---
+window.gatherConfig = function() {
     const config = {};
     const inputs = document.querySelectorAll('input, select, textarea');
     inputs.forEach(input => {
-        // Skip inputs inside modals
-        if (input.closest('.modal-wrap')) return;
-        if (input.id && input.id !== 'toast') {
-            const parts = input.id.split('__');
-            let obj = config;
-            for (let i = 0; i < parts.length - 1; i++) {
-                const part = parts[i];
-                if (!obj[part]) obj[part] = {};
-                obj = obj[part];
-            }
-            const last = parts[parts.length - 1];
-            if (input.type === 'checkbox') {
-                obj[last] = input.checked ? '1' : '0';
-            } else {
-                obj[last] = input.value;
-            }
+        if (!input.id || input.id === 'toast') return;
+        const parts = input.id.split('__');
+        let obj = config;
+        for (let i = 0; i < parts.length - 1; i++) {
+            const part = parts[i];
+            if (!obj[part]) obj[part] = {};
+            obj = obj[part];
+        }
+        const last = parts[parts.length - 1];
+        if (input.type === 'checkbox') {
+            obj[last] = input.checked ? '1' : '0';
+        } else {
+            obj[last] = input.value;
         }
     });
     return config;
-}
+};
 
-async function loadConfig() {
-    const config = await pywebview.api.get_config();
-    setConfigValues(config);
-    setStatus('idle', 'IDLE');
-}
+// --- loadConfig: fetch from Python and apply ---
+window.loadConfig = async function() {
+    try {
+        const config = await pywebview.api.get_config();
+        setConfigValues(config);
+        setStatus('idle', 'IDLE');
+    } catch (e) {
+        console.error('loadConfig error:', e);
+    }
+};
 
-async function saveConfig() {
+// --- saveConfig: gather and send to Python ---
+window.saveConfig = async function() {
     const newConfig = gatherConfig();
     const result = await pywebview.api.save_config(newConfig);
     if (result.status === 'ok') {
         showToast('Settings saved');
     }
-}
+};
+
 
 // Macro control
 window.startMacro = async () => {
