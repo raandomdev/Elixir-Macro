@@ -1,31 +1,44 @@
 {
     "settings": {
         "vip_mode": "0",
-        "vip+_mode": "0",
+        "vip+_mode": "1",
         "azerty_mode": "0",
         "reset": "1",
-        "merchant": {"enabled": "0", "duration": "60"}
+        "merchant": {
+            "enabled": "0",
+            "duration": "60"
+        },
+        "click_delay": "0.33"
     },
     "discord": {
         "webhook": {
-            "enabled": "0",
+            "enabled": "1",
             "url": "",
             "ping_id": "",
             "ps_link": ""
         }
     },
     "auto_equip": {
-        "enabled": "0",
-        "aura": "",
-        "special_aura": "0"
+        "enabled": "1",
+        "aura": "pukeko",
+        "special_aura": "1"
     },
-    "obby": {"enabled": "0"},
-    "chalice": {"enabled": "0"},
+    "obby": {
+        "enabled": "0"
+    },
+    "chalice": {
+        "enabled": "0"
+    },
     "item_collecting": {
         "enabled": "0",
-        "spot1": "1", "spot2": "1", "spot3": "1",
-        "spot4": "1", "spot5": "1", "spot6": "1",
-        "spot7": "1", "spot8": "1"
+        "spot1": "1",
+        "spot2": "1",
+        "spot3": "1",
+        "spot4": "1",
+        "spot5": "1",
+        "spot6": "1",
+        "spot7": "1",
+        "spot8": "1"
     },
     "potion_crafting": {
         "enabled": "0",
@@ -38,68 +51,302 @@
         "craft_potion_3": "0",
         "temporary_auto_add": "0",
         "current_temporary_auto_add": "",
-        "potion_crafting": "1"
+        "potion_crafting": "0"
     },
-    "claim_daily_quests": "0",
-    "invo_ss": {"enabled": "0", "duration": "60"},
+    "claim_daily_quests": "1",
+    "invo_ss": {
+        "enabled": "1",
+        "duration": "60"
+    },
     "item_scheduler_item": {
-        "enabled": "0",
+        "enabled": "1",
         "item_name": "",
         "item_scheduler_quantity": "1",
-        "interval": "30"
+        "interval": "10",
+        "name": "speed",
+        "quantity": "5"
     },
-    "biome_detection": {"enabled": "0"},
-    "enabled_dectection": "0",
+    "biome_detection": {
+        "enabled": "1"
+    },
+    "enabled_dectection": "1",
     "send_min": "100",
     "send_max": "999",
-    "mari": {"ping": {"enabled": "0", "id": ""}, "settings": {}},
-    "jester": {"ping": {"enabled": "0", "id": ""}, "settings": {}},
-    "fishing": {"enabled": "0", "live_preview": "0", "capture_fps": "60", "color_tolerance": "1", "auto_buy": "0"},
+    "mari": {
+        "ping": {
+            "enabled": "0",
+            "id": ""
+        },
+        "settings": {
+            "1": "",
+            "2": "",
+            "3": "",
+            "4": "",
+            "5": "",
+            "6": "",
+            "7": "",
+            "8": "",
+            "9": "",
+            "10": "",
+            "11": "",
+            "Void Coin": "0",
+            "Lucky Penny": "0",
+            "Mixed Potion": "0",
+            "Lucky Potion": "0",
+            "Lucky Potion L": "0",
+            "Lucky Potion XL": "0",
+            "Speed Potion": "0",
+            "Speed Potion L": "0",
+            "Speed Potion XL": "0",
+            "Gear A": "0",
+            "Gear B": "0"
+        }
+    },
+    "jester": {
+        "ping": {
+            "enabled": "0",
+            "id": ""
+        },
+        "settings": {
+            "1": "",
+            "2": "",
+            "3": "",
+            "4": "",
+            "5": "",
+            "6": "",
+            "7": "",
+            "8": "",
+            "9": "",
+            "10": "",
+            "11": "",
+            "12": "",
+            "13": "",
+            "14": "",
+            "15": "",
+            "16": "",
+            "Oblivion Potion": "0",
+            "Heavenly Potion": "0",
+            "Rune of Everything": "0",
+            "Rune of Dust": "0",
+            "Rune of Nothing": "0",
+            "Rune Of Corruption": "0",
+            "Rune Of Hell": "0",
+            "Rune of Galaxy": "0",
+            "Rune of Rainstorm": "0",
+            "Rune of Frost": "0",
+            "Rune of Wind": "0",
+            "Strange Potion": "0",
+            "Lucky Potion": "0",
+            "Stella's Candle": "0",
+            "Merchant Tracker": "0",
+            "Random Potion Sack": "0"
+        }
+    },
+    "fishing": {
+        "enabled": "0",
+        "live_preview": "0",
+        "capture_fps": "60",
+        "color_tolerance": "1",
+        "auto_buy": "0"
+    },
     "biome_alerts": {
-        "NORMAL": "0", "WINDY": "0", "RAINY": "0", "SNOWY": "0",
-        "SAND STORM": "0", "HELL": "0", "STARFALL": "0", "HEAVEN": "0",
-        "CORRUPTION": "0", "NULL": "0", "GLITCHED": "0", "DREAMSPACE": "0",
-        "CYBERSPACE": "0", "THE CITADEL OF ORDERS": "0"
+        "NORMAL": "1",
+        "WINDY": "1",
+        "RAINY": "1",
+        "SNOWY": "1",
+        "SAND STORM": "1",
+        "HELL": "1",
+        "STARFALL": "1",
+        "HEAVEN": "1",
+        "CORRUPTION": "1",
+        "NULL": "1",
+        "GLITCHED": "1",
+        "DREAMSPACE": "1",
+        "CYBERSPACE": "1",
+        "THE CITADEL OF ORDERS": "1"
     },
     "clicks": {
-        "aura_storage": [0, 0],
-        "regular_tab": [0, 0],
-        "special_tab": [0, 0],
-        "search_bar": [0, 0],
-        "aura_first_slot": [0, 0],
-        "equip_button": [0, 0],
-        "collection_menu": [0, 0],
-        "exit_collection": [0, 0],
-        "items_storage": [0, 0],
-        "items_tab": [0, 0],
-        "items_bar": [0, 0],
-        "item_first_slot": [0, 0],
-        "item_value": [0, 0],
-        "use_button": [0, 0],
-        "quest_menu": [0, 0],
-        "first_slot": [0, 0],
-        "second_slot": [0, 0],
-        "third_slot": [0, 0],
-        "claim_button": [0, 0],
-        "merchant_name_ocr": [0, 0, 0, 0],
-        "merchant_open_button": [0, 0],
-        "merchant_dialog": [0, 0],
-        "merchant_item_name_ocr": [0, 0, 0, 0],
-        "merchant_amount_button": [0, 0],
-        "merchant_purchase_button": [0, 0],
-        "merchant_1_slot_button": [0, 0],
-        "potion_search_bar": [0, 0],
-        "first_potion_slot": [0, 0],
-        "second_potion_slot": [0, 0],
-        "third_potion_slot": [0, 0],
-        "open_recipe": [0, 0],
-        "potion_tab": [0, 0],
-        "item_tab": [0, 0],
-        "add_button_1": [0, 0],
-        "add_button_2": [0, 0],
-        "add_button_3": [0, 0],
-        "add_button_4": [0, 0],
-        "craft_button": [0, 0],
-        "auto_add_button": [0, 0]
-    }
+        "aura_storage": [
+            "306",
+            "240"
+        ],
+        "regular_tab": [
+            "679",
+            "248"
+        ],
+        "special_tab": [
+            "813",
+            "247"
+        ],
+        "search_bar": [
+            "628",
+            "261"
+        ],
+        "aura_first_slot": [
+            "626",
+            "293"
+        ],
+        "equip_button": [
+            "545",
+            "373"
+        ],
+        "collection_menu": [
+            "304",
+            "281"
+        ],
+        "exit_collection": [
+            "443",
+            "134"
+        ],
+        "items_storage": [
+            "303",
+            "320"
+        ],
+        "items_tab": [
+            "811",
+            "252"
+        ],
+        "items_bar": [
+            "639",
+            "266"
+        ],
+        "item_first_slot": [
+            "636",
+            "312"
+        ],
+        "item_value": [
+            "515",
+            "355"
+        ],
+        "use_button": [
+            "563",
+            "354"
+        ],
+        "quest_menu": [
+            "307",
+            "396"
+        ],
+        "first_slot": [
+            "865",
+            "331"
+        ],
+        "second_slot": [
+            "865",
+            "361"
+        ],
+        "third_slot": [
+            "863",
+            "393"
+        ],
+        "claim_button": [
+            "542",
+            "436"
+        ],
+        "merchant_name_ocr": [
+            0,
+            0,
+            0,
+            0
+        ],
+        "merchant_open_button": [
+            0,
+            0
+        ],
+        "merchant_dialog": [
+            0,
+            0
+        ],
+        "merchant_item_name_ocr": [
+            0,
+            0,
+            0,
+            0
+        ],
+        "merchant_amount_button": [
+            0,
+            0
+        ],
+        "merchant_purchase_button": [
+            0,
+            0
+        ],
+        "merchant_1_slot_button": [
+            0,
+            0
+        ],
+        "potion_search_bar": [
+            0,
+            0
+        ],
+        "first_potion_slot": [
+            0,
+            0
+        ],
+        "second_potion_slot": [
+            0,
+            0
+        ],
+        "third_potion_slot": [
+            0,
+            0
+        ],
+        "open_recipe": [
+            0,
+            0
+        ],
+        "potion_tab": [
+            0,
+            0
+        ],
+        "item_tab": [
+            0,
+            0
+        ],
+        "add_button_1": [
+            0,
+            0
+        ],
+        "add_button_2": [
+            0,
+            0
+        ],
+        "add_button_3": [
+            0,
+            0
+        ],
+        "add_button_4": [
+            0,
+            0
+        ],
+        "craft_button": [
+            0,
+            0
+        ],
+        "auto_add_button": [
+            0,
+            0
+        ]
+    },
+    "spot1": "1",
+    "spot2": "1",
+    "spot3": "1",
+    "spot4": "1",
+    "spot5": "1",
+    "spot6": "1",
+    "spot7": "1",
+    "spot8": "1",
+    "biome_NORMAL": "1",
+    "biome_WINDY": "1",
+    "biome_RAINY": "1",
+    "biome_SNOWY": "1",
+    "biome_SAND_STORM": "1",
+    "biome_HELL": "1",
+    "biome_STARFALL": "1",
+    "biome_HEAVEN": "1",
+    "biome_CORRUPTION": "1",
+    "biome_NULL": "1",
+    "biome_GLITCHED": "1",
+    "biome_DREAMSPACE": "1",
+    "biome_CYBERSPACE": "1",
+    "biome_THE_CITADEL_OF_ORDERS": "1"
 }
