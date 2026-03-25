@@ -25,7 +25,6 @@ except ImportError as e:
     messagebox.showerror("Import Error", f"Missing module: {e}\nPlease install required packages.")
     sys.exit(1)
 
-# Platform-specific imports
 ahk = None
 if sys.platform == "win32":
     try:
@@ -131,7 +130,7 @@ def read_config():
             "interval": "30"
         },
         "biome_detection": {"enabled": "0"},
-        "enabled_dectection": "0",  # Fixed typo from "enabled_dectection"
+        "enabled_dectection": "0",
         "send_min": "100",
         "send_max": "999",
         "mari": {"ping": {"enabled": "0", "id": ""}, "settings": {}},
@@ -1486,7 +1485,7 @@ HTML = """
       <div class="g2">
         <div class="card">
           <div class="card-head">🗓 Item Scheduler</div>
-          <label class="chk" style="margin-bottom:10px;"><input type="checkbox" id="item_scheduler_item__enabled"><span class="chk-box"></span><span class="chk-lbl">Enable Item Scheduler</span></label>
+          <label class="chk off" style="margin-bottom:10px;"><input type="checkbox" id="item_scheduler_item__enabled"><span class="chk-box"></span><span class="chk-lbl">Enable Item Scheduler</span></label>
           <div class="igroup"><div class="ilbl">Item Name</div><input class="ifield" id="item_scheduler_item__name" placeholder="e.g. Fortune I"></div>
           <div class="g2">
             <div class="igroup"><div class="ilbl">Quantity</div><input class="ifield sm" id="item_scheduler_item__quantity" placeholder="1"></div>
