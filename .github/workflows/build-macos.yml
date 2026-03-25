@@ -22,16 +22,17 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
+        pip install pyinstaller   # Ensure PyInstaller is installed
 
     - name: Build .app with PyInstaller
       run: |
-        # If your script is app.pyw, rename or symlink to .py for PyInstaller
+        # Copy app.pyw to app.py (PyInstaller works with .py)
         cp app.pyw app.py
-        pyinstaller --windowed --onefile --name "Elixir Macro (MacOS)" app.py
-        # The .app will be in dist/MyApp.app
-
+        # Use python -m to guarantee the module is found
+        python -m PyInstaller --windowed --onefile --name "Elixir-Macro-(MacOS)" app.py
+        
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
         name: MyApp-macOS
-        path: dist/MyApp.app
+        path: dist/Elixir-Macro-(MacOS).app
