@@ -31,10 +31,14 @@ jobs:
     
     - name: Build app with PyInstaller
       run: |
+        ICON_ARG=""
+        if [ -f "icon.icns" ]; then
+          ICON_ARG="--icon=icon.icns"
+        fi
         pyinstaller \
           --onefile \
           --windowed \
-          --icon=icon.icns \
+          $ICON_ARG \
           --name="Elixir Macro" \
           --hidden-import=ttkbootstrap \
           app.pyw
