@@ -10,6 +10,7 @@ Yes — under the Apache 2.0 license, *you absolutely can* update (modify) any c
    …*without needing further permission* ([apache.org][1]).
 
 ---
+<img width="681" height="425" alt="image" src="https://github.com/user-attachments/assets/6d1d5a75-5693-4307-af9e-72c63009fccc" />
 
 ### ✅ What You Must Do Under Apache 2.0
 
