@@ -5,11 +5,11 @@ on:
     branches: [ main, master ]
   pull_request:
     branches: [ main, master ]
-  workflow_dispatch:  # allow manual trigger
+  workflow_dispatch:
 
 jobs:
   build-macos:
-    runs-on: macos-latest   # GitHub’s macOS runner (Apple Silicon, but builds universal)
+    runs-on: macos-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -31,31 +31,28 @@ jobs:
           pip install pyinstaller
           pip install pyautogui mss pytesseract discord-webhook pywebview ttkbootstrap pynput pillow requests
 
-      - name: Prepare Tesseract for bundling
+      - name: Find Tesseract path
         run: |
-          # Find tesseract binary path
           TESS_PATH=$(brew --prefix tesseract)/bin/tesseract
           echo "TESSERACT_PATH=$TESS_PATH" >> $GITHUB_ENV
 
       - name: Build universal2 app with PyInstaller
         run: |
-          # Create a spec file with universal2 flag and bundle tesseract
-          pyinstaller --name="Elixir Macro" \
+          pyinstaller \
+            --name "Elixir Macro" \
             --onefile \
             --windowed \
-            --universal2 \
+            --target-architecture universal2 \
             --add-data "$TESSERACT_PATH:." \
-            --hidden-import=ttkbootstrap \
-            --hidden-import=pynput \
-            --hidden-import=pyautogui \
+            --hidden-import ttkbootstrap \
+            --hidden-import pynput \
+            --hidden-import pyautogui \
             app.pyw
 
-      - name: Create application bundle structure (optional)
+      - name: Create .app bundle structure
         run: |
-          # PyInstaller outputs a UNIX executable; wrap it in a .app folder for convenience
           mkdir -p "dist/Elixir Macro.app/Contents/MacOS"
           cp "dist/Elixir Macro" "dist/Elixir Macro.app/Contents/MacOS/Elixir Macro"
-          # Add a simple Info.plist
           cat > "dist/Elixir Macro.app/Contents/Info.plist" <<EOF
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -75,7 +72,7 @@ jobs:
           </plist>
           EOF
 
-      - name: Upload app bundle as artifact
+      - name: Upload app bundle
         uses: actions/upload-artifact@v4
         with:
           name: Elixir-Macro-macOS-Universal
