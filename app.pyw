@@ -100,8 +100,10 @@ def read_config():
             "azerty_mode": "0",
             "reset": "1",
             "merchant": {"enabled": "0", "duration": "60"},
-            "click_delay": "0.55",
-            "enable_play_joins": "0"
+            "click_delay": "0.40",
+            "enable_play_joins": "0",
+            "record_biome": "0",
+            "play_recording_duration": "30"
         },
         "discord": {
             "webhook": {
@@ -932,14 +934,7 @@ class MainLoop:
             c = self.config_data.get('clicks', {})
             click_delay = float(self.config_data.get("settings", {}).get("click_delay", 0.55))
             scheduler_config = self.config_data.get('item_scheduler_item', {})
-            if str(scheduler_config.get('enable_only_if_biome', '0')) == "1":
-                allowed_biomes = scheduler_config.get('biome', [])
-                if isinstance(allowed_biomes, str):
-                    allowed_biomes = [b.strip() for b in allowed_biomes.split(',') if b.strip()]
-                allowed_biomes = {str(b).strip().upper() for b in allowed_biomes if b is not None}
-                current_biome = (self.tracker.current_biome or "").strip().upper()
-                if not current_biome or current_biome not in allowed_biomes:
-                    return False
+        
             platform_click(*c.get('items_storage', [0, 0]))
             time.sleep(0.55 + click_delay)
             platform_click(*c.get('items_tab', [0, 0]))
@@ -972,10 +967,9 @@ class MainLoop:
             platform_key_combo('{Enter}')
             time.sleep(0.55 + click_delay)
             platform_click(*c.get('items_storage', [0, 0]))
-            return True
+
         except Exception as e:
             print(f"Item scheduler error: {e}")
-            return False
 
     def claim_quests(self):
         if self.config_data.get('claim_daily_quests') != "1":
