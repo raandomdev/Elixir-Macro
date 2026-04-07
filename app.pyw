@@ -51,7 +51,7 @@ except:
 sys.dont_write_bytecode = True
 
 CONFIG_FILE = "config.json"
-CURRENT_VERSION = "1.1.2"
+CURRENT_VERSION = "1.1.3"
 
 def get_current_version():
     return CURRENT_VERSION
@@ -1451,7 +1451,7 @@ HTML = """
       <div class="tbar-icon">
         <span>⬡</span>
       </div>
-    <div class="tbar-name">ELIXIR <span class="tbar-ver">v1.1.2</span></div>
+    <div class="tbar-name">ELIXIR <span class="tbar-ver">v1.1.3</span></div>
     </div>
     <div class="tbar-status">
       <div class="sdot idle" id="sdot"></div>
