@@ -809,8 +809,6 @@ class MainLoop:
                 time.sleep(1)
                 self.align_cam()
                 time.sleep(1)
-                self.item_scheduler()
-                time.sleep(1)
                 self.auto_loop_stuff()
                 time.sleep(1)
                 self.do_obby()
@@ -933,8 +931,15 @@ class MainLoop:
         try:
             c = self.config_data.get('clicks', {})
             click_delay = float(self.config_data.get("settings", {}).get("click_delay", 0.55))
-            #if self.config_data.get('item_scheduler_item', {}).get('enable_only_if_biome') == "1" and self.tracker.current_biome not in self.config_data.get('item_scheduler_item', {}).get('biome', []):
-            #    return False
+            scheduler_config = self.config_data.get('item_scheduler_item', {})
+            if str(scheduler_config.get('enable_only_if_biome', '0')) == "1":
+                allowed_biomes = scheduler_config.get('biome', [])
+                if isinstance(allowed_biomes, str):
+                    allowed_biomes = [b.strip() for b in allowed_biomes.split(',') if b.strip()]
+                allowed_biomes = {str(b).strip().upper() for b in allowed_biomes if b is not None}
+                current_biome = (self.tracker.current_biome or "").strip().upper()
+                if not current_biome or current_biome not in allowed_biomes:
+                    return False
             platform_click(*c.get('items_storage', [0, 0]))
             time.sleep(0.55 + click_delay)
             platform_click(*c.get('items_tab', [0, 0]))
@@ -942,7 +947,7 @@ class MainLoop:
             platform_click(*c.get('items_bar', [0, 0]))
             time.sleep(0.33 + click_delay)
             
-            item_name = self.config_data.get('item_scheduler_item', {}).get('item_name', '')
+            item_name = scheduler_config.get('item_name', '')
             
             platform_key_press(item_name)
             time.sleep(0.55 + click_delay)
@@ -955,7 +960,7 @@ class MainLoop:
             platform_click(*c.get('item_value', [0, 0]))
             time.sleep(0.33 + click_delay)
             
-            quantity = self.config_data.get('item_scheduler_item', {}).get('item_scheduler_quantity', '1')
+            quantity = scheduler_config.get('item_scheduler_quantity', '1')
             platform_key_combo(quantity)
             time.sleep(0.55 + click_delay)
             platform_key_combo('{Enter}')
@@ -967,11 +972,10 @@ class MainLoop:
             platform_key_combo('{Enter}')
             time.sleep(0.55 + click_delay)
             platform_click(*c.get('items_storage', [0, 0]))
-            #return True
-                
+            return True
         except Exception as e:
             print(f"Item scheduler error: {e}")
-            #return False
+            return False
 
     def claim_quests(self):
         if self.config_data.get('claim_daily_quests') != "1":
@@ -1190,7 +1194,7 @@ class MainLoop:
                 color=0x00ff00
             )
             for biome, count in self.tracker.biome_counts.items():
-                embed.add_field(name=biome, value=str(count), inline=True)
+                embed.add_embed_field(name=biome, value=str(count), inline=True)
             webhook.add_embed(embed)
             webhook.execute()
         except Exception as e:
@@ -1268,13 +1272,19 @@ class Api:
 
     def update_status(self, state, text):
         try:
-            webview.active_window().evaluate_js(f"window.setStatus('{state}', '{text}')")
+            win = webview.active_window()
+            if win is None:
+                return
+            win.evaluate_js(f"window.setStatus('{state}', '{text}')")
         except Exception as e:
             print(f"update_status error: {e}")
 
     def show_toast(self, message, duration=3000):
         try:
-            webview.active_window().evaluate_js(f"window.showToast('{message}', {duration})")
+            win = webview.active_window()
+            if win is None:
+                return
+            win.evaluate_js(f"window.showToast('{message}', {duration})")
         except Exception as e:
             print(f"show_toast error: {e}")
 
