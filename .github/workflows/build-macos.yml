@@ -1,4 +1,4 @@
-name: Build macOS App (Universal)
+name: Build macOS Apps (Intel + Apple Silicon)
 
 on:
   push:
@@ -8,72 +8,124 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-macos:
+  build-arm64:
+    name: Build for Apple Silicon (arm64)
     runs-on: macos-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Set up Python (arm64)
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-          cache: 'pip'
+          architecture: 'arm64'
 
       - name: Install system dependencies (Tesseract)
         run: |
           brew update
           brew install tesseract
 
-      - name: Install Python dependencies
+      - name: Install Python packages
         run: |
-          python -m pip install --upgrade pip setuptools wheel
-          pip install pyinstaller
-          pip install pyautogui mss pytesseract discord-webhook pywebview ttkbootstrap pynput pillow requests
+          pip install --upgrade pip
+          pip install pyinstaller pyautogui mss pytesseract discord-webhook pywebview ttkbootstrap pynput pillow requests
 
-      - name: Find Tesseract path
+      - name: Build for arm64
         run: |
           TESS_PATH=$(brew --prefix tesseract)/bin/tesseract
-          echo "TESSERACT_PATH=$TESS_PATH" >> $GITHUB_ENV
-
-      - name: Build universal2 app with PyInstaller
-        run: |
           pyinstaller \
-            --name "Elixir Macro" \
+            --name "Elixir_Macro_ARM" \
             --onefile \
             --windowed \
-            --target-architecture universal2 \
-            --add-data "$TESSERACT_PATH:." \
+            --target-architecture arm64 \
+            --add-data "$TESS_PATH:." \
             --hidden-import ttkbootstrap \
             --hidden-import pynput \
             --hidden-import pyautogui \
-            app.pyw
+            macOS.pyw
 
-      - name: Create .app bundle structure
+      - name: Create .app bundle
         run: |
-          mkdir -p "dist/Elixir Macro.app/Contents/MacOS"
-          cp "dist/Elixir Macro" "dist/Elixir Macro.app/Contents/MacOS/Elixir Macro"
-          cat > "dist/Elixir Macro.app/Contents/Info.plist" <<EOF
+          mkdir -p "dist/Elixir_Macro_ARM.app/Contents/MacOS"
+          cp "dist/Elixir_Macro_ARM" "dist/Elixir_Macro_ARM.app/Contents/MacOS/Elixir_Macro_ARM"
+          cat > "dist/Elixir_Macro_ARM.app/Contents/Info.plist" <<EOF
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
           <dict>
-            <key>CFBundleExecutable</key>
-            <string>Elixir Macro</string>
-            <key>CFBundleIdentifier</key>
-            <string>com.elixir.macro</string>
-            <key>CFBundleName</key>
-            <string>Elixir Macro</string>
-            <key>CFBundlePackageType</key>
-            <string>APPL</string>
-            <key>CFBundleShortVersionString</key>
-            <string>1.1.2</string>
+            <key>CFBundleExecutable</key><string>Elixir_Macro_ARM</string>
+            <key>CFBundleIdentifier</key><string>com.elixir.macro.arm</string>
+            <key>CFBundleName</key><string>Elixir Macro (ARM)</string>
+            <key>CFBundlePackageType</key><string>APPL</string>
+            <key>CFBundleShortVersionString</key><string>1.1.2</string>
           </dict>
           </plist>
           EOF
 
-      - name: Upload app bundle
+      - name: Upload ARM artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Elixir-Macro-macOS-Universal
-          path: dist/Elixir Macro.app
+          name: Elixir-Macro-AppleSilicon
+          path: dist/Elixir_Macro_ARM.app
+
+  build-intel:
+    name: Build for Intel (x86_64)
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python (x86_64)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          architecture: 'x64'
+
+      - name: Install system dependencies (Tesseract) – x86_64
+        run: |
+          arch -x86_64 brew update
+          arch -x86_64 brew install tesseract
+
+      - name: Install Python packages – x86_64
+        run: |
+          pip install --upgrade pip
+          pip install pyinstaller pyautogui mss pytesseract discord-webhook pywebview ttkbootstrap pynput pillow requests
+
+      - name: Build for x86_64
+        run: |
+          TESS_PATH=$(arch -x86_64 brew --prefix tesseract)/bin/tesseract
+          arch -x86_64 pyinstaller \
+            --name "Elixir_Macro_Intel" \
+            --onefile \
+            --windowed \
+            --target-architecture x86_64 \
+            --add-data "$TESS_PATH:." \
+            --hidden-import ttkbootstrap \
+            --hidden-import pynput \
+            --hidden-import pyautogui \
+            macOS.pyw
+
+      - name: Create .app bundle
+        run: |
+          mkdir -p "dist/Elixir_Macro_Intel.app/Contents/MacOS"
+          cp "dist/Elixir_Macro_Intel" "dist/Elixir_Macro_Intel.app/Contents/MacOS/Elixir_Macro_Intel"
+          cat > "dist/Elixir_Macro_Intel.app/Contents/Info.plist" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>CFBundleExecutable</key><string>Elixir_Macro_Intel</string>
+            <key>CFBundleIdentifier</key><string>com.elixir.macro.intel</string>
+            <key>CFBundleName</key><string>Elixir Macro (Intel)</string>
+            <key>CFBundlePackageType</key><string>APPL</string>
+            <key>CFBundleShortVersionString</key><string>1.1.2</string>
+          </dict>
+          </plist>
+          EOF
+
+      - name: Upload Intel artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Elixir-Macro-Intel
+          path: dist/Elixir_Macro_Intel.app
