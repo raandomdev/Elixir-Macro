@@ -1,5 +1,14 @@
-import os
 import sys
+import pytesseract
+import os
+
+if getattr(sys, 'frozen', False):
+    # When bundled, tesseract is in the same directory as the executable
+    base_path = sys._MEIPASS
+    pytesseract.pytesseract.tesseract_cmd = os.path.join(base_path, 'tesseract')
+else:
+    # Development environment
+    pytesseract.pytesseract.tesseract_cmd = '/usr/local/bin/tesseract'
 import json
 import pathlib
 import time
@@ -21,7 +30,6 @@ IS_LINUX = sys.platform == "linux"
 # ---------- Cross‑platform imports ----------
 import pyautogui as auto
 import mss
-import pytesseract
 import discord_webhook
 import webview
 from PIL import ImageGrab, Image
