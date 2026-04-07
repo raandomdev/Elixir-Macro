@@ -14,24 +14,39 @@ import logging
 from pathlib import Path
 
 try:
+    import dxcam
     import discord_webhook
     import keyboard
     import mouse
     import pyautogui as auto
     import webview
     import pytesseract
+    import mss
     from PIL import ImageGrab, Image
+    import ttkbootstrap as tb
 except ImportError as e:
-    messagebox.showerror("Import Error", f"Missing module: {e}\nPlease install required packages.")
-    sys.exit(1)
+    try:
+        import tkinter as tk
+        tb = None
+    except ImportError:
+        messagebox.showerror("Import Error", f"Missing module: {e}\nPlease install required packages.")
+        sys.exit(1)
 
 ahk = None
+dxcam_available = False
+mss_available = True
+
 if sys.platform == "win32":
     try:
         from ahk import AHK
         ahk = AHK()
     except Exception as e:
         print(f"AHK import failed: {e}")
+
+try:
+    dxcam_available = dxcam is not None
+except:
+    dxcam_available = False
 
 sys.dont_write_bytecode = True
 
@@ -85,7 +100,8 @@ def read_config():
             "azerty_mode": "0",
             "reset": "1",
             "merchant": {"enabled": "0", "duration": "60"},
-            "click_delay": "0.55"
+            "click_delay": "0.55",
+            "enable_play_joins": "0"
         },
         "discord": {
             "webhook": {
@@ -127,7 +143,9 @@ def read_config():
             "enabled": "0",
             "item_name": "",
             "item_scheduler_quantity": "1",
-            "interval": "30"
+            "interval": "30",
+            "enable_only_if_biome": "0",
+            "biome": []
         },
         "biome_detection": {"enabled": "0"},
         "enabled_dectection": "0",
@@ -137,7 +155,7 @@ def read_config():
         "jester": {"ping": {"enabled": "0", "id": ""}, "settings": {}},
         "fishing": {"enabled": "0", "live_preview": "0", "capture_fps": "60", "color_tolerance": "1", "auto_buy": "0"},
         "biome_alerts": {
-            "NORMAL": "0", "WINDY": "0", "RAINY": "0", "SNOWY": "0",
+            "NORMAL": "0", "WINDY": "0", "RAINY": "0", "SNOWY": "0","EGGLAND": "1",
             "SAND STORM": "0", "HELL": "0", "STARFALL": "0", "HEAVEN": "0",
             "CORRUPTION": "0", "NULL": "0", "GLITCHED": "0", "DREAMSPACE": "0",
             "CYBERSPACE": "0", "THE CITADEL OF ORDERS": "0"
@@ -205,11 +223,32 @@ def save_config(cfg):
 
 config_data = read_config()
 
-def perform_ocr(x, y, w, h):
+def perform_ocr(x, y, w, h, quality="normal"):
     """Capture screen region and return recognized text."""
     try:
-        bbox = (x, y, x + w, y + h)
-        img = ImageGrab.grab(bbox)
+        # Check if tesseract is available
+        try:
+            import pytesseract
+            pytesseract.get_tesseract_version()
+        except Exception as e:
+            print(f"Tesseract not found: {e}")
+            print("On macOS, install with: brew install tesseract")
+            print("On Windows, download from: https://github.com/UB-Mannheim/tesseract/wiki")
+            return ""
+        
+        # Use mss for cross-platform screen capture
+        with mss.mss() as sct:
+            monitor = {"top": y, "left": x, "width": w, "height": h}
+            img = sct.grab(monitor)
+            # Convert to PIL Image
+            img = Image.frombytes("RGB", img.size, img.bgra, "raw", "BGRX")
+        
+        # Optimize for performance based on platform and quality setting
+        if quality == "fast" or sys.platform == "win32":
+            # Reduce size by half to speed up OCR
+            new_size = (max(1, img.width // 2), max(1, img.height // 2))
+            img = img.resize(new_size, Image.LANCZOS)
+        
         text = pytesseract.image_to_string(img, config='--psm 6').strip()
         return text
     except Exception as e:
@@ -246,6 +285,7 @@ class BiomeTracker:
         self.last_sent_aura = None
         self._running = False
         self._monitor_task = None
+        self.biome_count = 0
         self.create_log_file()
 
     def create_log_file(self):
@@ -493,6 +533,10 @@ class BiomeTracker:
         except Exception as e:
             logging.error(f"Aura processing error: {str(e)}")
 
+    def _process_new_joins(self, line):
+      if "[BloxstrapRPC]" not in line:
+            return
+      
     def _send_webhook(
         self, title, description, color, thumbnail=None, urgent=False, is_aura=False, fields=None
     ):
@@ -518,7 +562,7 @@ class BiomeTracker:
                 embed["fields"] = fields
             else:
                 if not is_aura:
-                    ps_link = self.private_server_link if self.private_server_link and self.private_server_link.strip() else "(no private server link)"
+                    ps_link = self.private_server_link if self.private_server_link and self.private_server_link.strip() else "-# brosquito didnt put a link :sob: :pray: yall r cooked :wilted_rose:"
                     embed["fields"] = [{"name": "Private Server Link", "value": ps_link}]
 
             if thumbnail:
@@ -703,9 +747,12 @@ class MainLoop:
         self.last_potion_3 = datetime.min
         self.last_ss = datetime.min
         self.last_item_scheduler = datetime.min
+        self._time_started = datetime.min
+        self._time_ended = datetime.min
         self.discord_webhook = self.config_data.get("discord", {}).get("webhook", {}).get("url", "")
 
     def start(self):
+        self._time_started = datetime.now() 
         if self.config_data.get("discord", {}).get("webhook", {}).get("enabled") == "1" and self.discord_webhook:
             self._send_discord("Macro Started", f"**- {time.strftime('[%I:%M:%S %p]')}: Macro started.**", 0x64ff5e)
         print("Starting Macro!")
@@ -715,8 +762,10 @@ class MainLoop:
         self._start_biome_detection()
 
     def stop(self):
+        self._time_ended = datetime.now()
         if self.config_data.get("discord", {}).get("webhook", {}).get("enabled") == "1" and self.discord_webhook:
             self._send_discord("Macro Stopped", f"**- {time.strftime('[%I:%M:%S %p]')}: Macro stopped.**", 0xff0000)
+            self.send_webhook_summary()
         self.running.clear()
         if self.tracker:
             self.tracker.stop_monitoring()
@@ -880,11 +929,12 @@ class MainLoop:
 
     def item_scheduler(self):
         if self.config_data.get('item_scheduler_item', {}).get('enabled') != "1":
-            return
+            return False
         try:
             c = self.config_data.get('clicks', {})
             click_delay = float(self.config_data.get("settings", {}).get("click_delay", 0.55))
-            
+            #if self.config_data.get('item_scheduler_item', {}).get('enable_only_if_biome') == "1" and self.tracker.current_biome not in self.config_data.get('item_scheduler_item', {}).get('biome', []):
+            #    return False
             platform_click(*c.get('items_storage', [0, 0]))
             time.sleep(0.55 + click_delay)
             platform_click(*c.get('items_tab', [0, 0]))
@@ -912,10 +962,16 @@ class MainLoop:
             time.sleep(0.43 + click_delay)
             platform_click(*c.get('use_button', [0, 0]))
             time.sleep(0.78 + click_delay)
+            platform_click(*c.get('items_bar', [0, 0]))
+            time.sleep(0.33 + click_delay)
+            platform_key_combo('{Enter}')
+            time.sleep(0.55 + click_delay)
             platform_click(*c.get('items_storage', [0, 0]))
+            #return True
                 
         except Exception as e:
             print(f"Item scheduler error: {e}")
+            #return False
 
     def claim_quests(self):
         if self.config_data.get('claim_daily_quests') != "1":
@@ -1032,7 +1088,7 @@ class MainLoop:
 
         if self.config_data.get("item_scheduler_item", {}).get("enabled") == "1":
             try:
-                item_scheduler_interval = self.config_data["item_scheduler_item"]["interval"]
+                item_scheduler_interval = int(self.config_data.get("item_scheduler_item", {}).get("interval"))
                 item_scheduler_time = timedelta(minutes=item_scheduler_interval)
             except (ValueError, TypeError):
                 item_scheduler_time = timedelta(minutes=20)
@@ -1043,8 +1099,9 @@ class MainLoop:
                 )
 
             if now - self.last_item_scheduler >= item_scheduler_time:
-                self.item_scheduler()
-                self.last_item_scheduler = now
+                executed = self.item_scheduler()
+                if executed or self.config_data.get("item_scheduler_item", {}).get("enable_only_if_biome") != "1":
+                    self.last_item_scheduler = now
 
     def do_crafting(self):
         """Execute crafting script."""
@@ -1075,7 +1132,69 @@ class MainLoop:
                 pass
         except Exception:
             pass
+    
+    def _record_with_dxcam(self):
+        try:
+            with dxcam.capture() as cap:
+                screen_dir = Path("images")
+                screen_dir.mkdir(parents=True, exist_ok=True)
+                path = screen_dir / f"biome_recording_{int(time.time())}.mp4"
+                cap.start_recording(str(path))
+                time.sleep(10)  # Record for 10 seconds
+                cap.stop_recording()
+        except Exception as e:
+            print(f"DXCam recording error: {e}")
+    
+    def record_with_medal(self):
+        try:
+            with mss.mss() as sct:
+                screen_dir = Path("images")
+                screen_dir.mkdir(parents=True, exist_ok=True)
+                path = screen_dir / f"biome_recording_{int(time.time())}.png"
+                sct.shot(output=str(path))
+        except Exception as e:
+            print(f"Medal recording error: {e}")
 
+    def record_biome(self, recording_module="dxcam"):
+        try: 
+            if self.config["settings"]["record_biome"]:
+                if recording_module == "dxcam" and dxcam:
+                    self._record_with_dxcam()
+                elif recording_module == "medal" and mss:
+                    self._record_with_medal()
+        except Exception as e:
+            print(f"Error occurred while recording biome: {e}")
+
+    def send_webhook_mpv(self, file_path):
+      try:
+          if not self.discord_webhook:
+              return
+          webhook = discord_webhook.DiscordWebhook(url=self.discord_webhook)
+          with open(file_path, 'rb') as f:
+              webhook.add_file(file=f.read(), filename=file_path.name)
+          embed = discord_webhook.DiscordEmbed(title="Biome Recording", description="")
+          embed.set_video(url=f"attachment://{file_path.name}")
+          webhook.add_embed(embed)
+          webhook.execute()
+      except Exception as e:
+          print(f"Webhook MPV error: {e}")
+
+    def send_webhook_summary(self):
+        try:
+            if not self.discord_webhook:
+                return
+            webhook = discord_webhook.DiscordWebhook(url=self.discord_webhook)
+            embed = discord_webhook.DiscordEmbed(
+                title="Macro Summary",
+                description=f"**Macro Started at:** {self._time_started.strftime('%I:%M:%S %p')}\n**Total Biomes Detected:** {sum(self.tracker.biome_counts.values())}\nEnded at: {self._time_ended.strftime('%I:%M:%S %p') if self._time_ended != datetime.min else 'N/A'}",
+                color=0x00ff00
+            )
+            for biome, count in self.tracker.biome_counts.items():
+                embed.add_field(name=biome, value=str(count), inline=True)
+            webhook.add_embed(embed)
+            webhook.execute()
+        except Exception as e:
+            print(f"Webhook summary error: {e}") 
 
 class CoordinateCapture:
     def __init__(self, callback):
@@ -1087,10 +1206,18 @@ class CoordinateCapture:
 
     def start_capture(self, mode='click'):
         self.mode = mode
-        self.root = tk.Tk()
+        if tb:
+            self.root = tb.Window()
+        else:
+            import tkinter as tk
+            self.root = tk.Tk()
         self.root.attributes('-fullscreen', True, '-alpha', 0.3)
         self.root.config(cursor='cross')
-        self.canvas = tk.Canvas(self.root, bg='lightblue', highlightthickness=0)
+        if tb:
+            self.canvas = tb.Canvas(self.root, bg='lightblue', highlightthickness=0)
+        else:
+            import tkinter as tk
+            self.canvas = tk.Canvas(self.root, bg='lightblue', highlightthickness=0)
         self.canvas.pack(fill='both', expand=True)
         self.root.bind('<Button-1>', self.on_click)
         if mode == 'rect':
@@ -1374,7 +1501,7 @@ HTML = """
         </div>
         <div class="divider" style="margin-top:4px;"><span>Screenshots</span></div>
         <div class="irow">
-          <label class="chk"><input type="checkbox" id="invo_ss__enabled"><span class="chk-box"></span><span class="chk-lbl">Inventory Screenshots</span></label>
+          <label class="chk"><input type="checkbox" id="invo_ss__enabled"><span class="chk-box"></span><span class="chk-lbl">Inventory and Aura Screenshots</span></label>
           <span style="font-size:10px;color:var(--white-faint);letter-spacing:1px;">Duration (min):</span>
           <input class="ifield sm" id="invo_ss__duration" placeholder="60">
         </div>
@@ -1386,7 +1513,7 @@ HTML = """
       <div class="card w100">
         <div class="card-head">⚗ Potion Crafting</div>
         <div class="irow" style="margin-bottom:12px;">
-          <label class="chk"><input type="checkbox" id="potion_crafting__enabled"><span class="chk-box"></span><span class="chk-lbl">Enable Potion Crafting</span></label>
+          <label class="chk"><input type="checkbox" id="potion_crafting__enabled"><span class="chk-box"></span><span class="chk-lbl">Enable Crafting</span></label>
           <label class="chk"><input type="checkbox" id="potion_crafting__temporary_auto_add"><span class="chk-box"></span><span class="chk-lbl">Auto Add Switcher</span></label>
           <label class="chk"><input type="checkbox" id="potion_crafting__potion_crafting"><span class="chk-box"></span><span class="chk-lbl">Potion Crafting Mode</span></label>
           <button class="btn sm" onclick="openModal('modal-crafting-clicks')"><span>Assign Crafting</span></button>
@@ -1395,7 +1522,7 @@ HTML = """
         <div style="margin:10px 0;">
           <div class="pot-row"><span class="pot-num">01</span><input class="ifield md" id="potion_crafting__item_1" placeholder="e.g. Fortune"><label class="chk"><input type="checkbox" id="potion_crafting__craft_potion_1"><span class="chk-box"></span><span class="chk-lbl">Craft Potion 1</span></label></div>
           <div class="pot-row"><span class="pot-num">02</span><input class="ifield md" id="potion_crafting__item_2" placeholder="e.g. Lucky Potion"><label class="chk"><input type="checkbox" id="potion_crafting__craft_potion_2"><span class="chk-box"></span><span class="chk-lbl">Craft Potion 2</span></label></div>
-          <div class="pot-row"><span class="pot-num">03</span><input class="ifield md" id="potion_crafting__item_3" placeholder="e.g. Heavenly"><label class="chk"><input type="checkbox" id="potion_crafting__craft_potion_3"><span class="chk-box"></span><span class="chk-lbl">Craft Potion 3</span></label></div>
+          <div class="pot-row"><span class="pot-num">03</span><input class="ifield md" id="potion_crafting__item_3" placeholder="e.g. Gear Basing"><label class="chk"><input type="checkbox" id="potion_crafting__craft_potion_3"><span class="chk-box"></span><span class="chk-lbl">Craft Potion 3</span></label></div>
         </div>
         <div class="divider"><span>Timing</span></div>
         <div class="g2" style="margin-top:8px;">
@@ -1485,7 +1612,7 @@ HTML = """
       <div class="g2">
         <div class="card">
           <div class="card-head">🗓 Item Scheduler</div>
-          <label class="chk off" style="margin-bottom:10px;"><input type="checkbox" id="item_scheduler_item__enabled"><span class="chk-box"></span><span class="chk-lbl">Enable Item Scheduler</span></label>
+          <label class="chk" style="margin-bottom:10px;"><input type="checkbox" id="item_scheduler_item__enabled"><span class="chk-box"></span><span class="chk-lbl">Enable Item Scheduler</span></label>
           <div class="igroup"><div class="ilbl">Item Name</div><input class="ifield" id="item_scheduler_item__name" placeholder="e.g. Fortune I"></div>
           <div class="g2">
             <div class="igroup"><div class="ilbl">Quantity</div><input class="ifield sm" id="item_scheduler_item__quantity" placeholder="1"></div>
@@ -1547,12 +1674,12 @@ HTML = """
         </span>
     Settings
     </button>
-    <button class="tbtn" data-tab="merchant">
+    <!-- button class="tbtn" data-tab="merchant">
         <span class="te">
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-store-icon lucide-store"><path d="M15 21v-5a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v5"/><path d="M17.774 10.31a1.12 1.12 0 0 0-1.549 0 2.5 2.5 0 0 1-3.451 0 1.12 1.12 0 0 0-1.548 0 2.5 2.5 0 0 1-3.452 0 1.12 1.12 0 0 0-1.549 0 2.5 2.5 0 0 1-3.77-3.248l2.889-4.184A2 2 0 0 1 7 2h10a2 2 0 0 1 1.653.873l2.895 4.192a2.5 2.5 0 0 1-3.774 3.244"/><path d="M4 10.95V19a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8.05"/></svg>
         </span>
     Merchant
-    </button>
+    </button> -->
     <!-- <button class="tbtn" data-tab="fishing"><span class="te">
         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-fishing-rod-icon lucide-fishing-rod"><path d="M4 11h1"/><path d="M8 15a2 2 0 0 1-4 0V3a1 1 0 0 1 1-1h.5C14 2 20 9 20 18v4"/><circle cx="18" cy="18" r="2"/></svg>
     </span>Fishing</button> -->
@@ -2401,7 +2528,7 @@ function populateBiomeModal(alerts) {
   if (!container) return;
   
   container.innerHTML = '';
-  const biomes = ["NORMAL", "WINDY", "RAINY", "SNOWY", "SAND STORM", "HELL", "STARFALL", "HEAVEN", "CORRUPTION", "NULL", "GLITCHED", "DREAMSPACE", "CYBERSPACE", "THE CITADEL OF ORDERS"];
+  const biomes = ["NORMAL", "WINDY", "RAINY", "SNOWY", "EGGLAND", "SAND STORM", "HELL", "STARFALL", "HEAVEN", "CORRUPTION", "NULL", "GLITCHED", "DREAMSPACE", "CYBERSPACE", "THE CITADEL OF ORDERS"];
   biomes.forEach(biome => {
     const label = document.createElement('label');
     label.className = 'chk';
