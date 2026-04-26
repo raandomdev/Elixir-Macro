@@ -31,6 +31,36 @@ except ImportError as e:
     except ImportError:
         messagebox.showerror("Import Error", f"Missing module: {e}\nPlease install required packages.")
         sys.exit(1)
+# Change directory to Application Support
+def get_base_dir():
+    """Sets the directory for images, logs, and paths to Application Support/Elixir on macOS."""
+    if sys.platform == "darwin":
+        # macOS: ~/Library/Application Support/Elixir
+        base = pathlib.Path.home() / "Library" / "Application Support" / "Elixir"
+    elif sys.platform == "win32":
+        # Windows: ~/AppData/Roaming/Elixir
+        base = pathlib.Path(os.environ.get("APPDATA", "~")) / "Elixir"
+    else:
+        # Default for other platforms or dev mode
+        if getattr(sys, 'frozen', False):
+            base = pathlib.Path(sys.executable).parent.resolve()
+        else:
+            base = pathlib.Path(__file__).parent.resolve()
+    
+    # Create the directories if they don't exist
+    for subfolder in ["images", "logs", "paths", "configs"]:
+        (base / subfolder).mkdir(parents=True, exist_ok=True)
+    
+    return base
+
+# SINGLE SOURCE OF TRUTH
+BASE_DIR = get_base_dir()
+
+# Specific Folder References
+IMAGE_DIR = BASE_DIR / "images"
+LOG_DIR = BASE_DIR / "logs"
+PATH_DIR = BASE_DIR / "paths"
+USER_CONFIG_DIR = BASE_DIR / "configs"
 
 ahk = None
 dxcam_available = False
@@ -158,7 +188,7 @@ def read_config():
         "fishing": {"enabled": "0", "live_preview": "0", "capture_fps": "60", "color_tolerance": "1", "auto_buy": "0"},
         "biome_alerts": {
             "NORMAL": "0", "WINDY": "0", "RAINY": "0", "SNOWY": "0","EGGLAND": "1",
-            "SAND STORM": "0", "HELL": "0", "STARFALL": "0", "HEAVEN": "0",
+            "SAND STORM": "0", "HELL": "0", "STARFALL": "0", "HEAVEN": "0", "SINGULARITY": "0",
             "CORRUPTION": "0", "NULL": "0", "GLITCHED": "0", "DREAMSPACE": "0",
             "CYBERSPACE": "0", "THE CITADEL OF ORDERS": "0"
         },
@@ -680,24 +710,11 @@ def platform_key_combo(key):
 azerty_replace_dict = {"w": "z", "a": "q"}
 
 def get_action(file):
-    """Read pathing script from paths folder."""
-    try:
-        base_path = None
-        if getattr(sys, 'frozen', False):
-            base_path = pathlib.Path(sys.executable).parent.resolve()
-        else:
-            base_path = pathlib.Path(__file__).parent.resolve()
-        
-        path_file = base_path / "paths" / f"{file}.py"
-        if path_file.exists():
-            with open(path_file, 'r') as f:
-                return f.read()
-        else:
-            print(f"Path file not found: {path_file}")
-            return ""
-    except Exception as e:
-        print(f"Failed to load path {file}: {e}")
-        return ""
+    path_file = PATH_DIR / f"{file}.py"  # Now points to Application Support/Elixir/paths
+    if path_file.exists():
+        with open(path_file, 'r') as f:
+            return f.read()
+    return ""
 
 def get_file(file):
     try:
@@ -2532,7 +2549,7 @@ function populateBiomeModal(alerts) {
   if (!container) return;
   
   container.innerHTML = '';
-  const biomes = ["NORMAL", "WINDY", "RAINY", "SNOWY", "EGGLAND", "SAND STORM", "HELL", "STARFALL", "HEAVEN", "CORRUPTION", "NULL", "GLITCHED", "DREAMSPACE", "CYBERSPACE", "THE CITADEL OF ORDERS"];
+  const biomes = ["NORMAL", "WINDY", "RAINY", "SNOWY", "EGGLAND", "SINGULARITY", "SAND STORM", "HELL", "STARFALL", "HEAVEN", "CORRUPTION", "NULL", "GLITCHED", "DREAMSPACE", "CYBERSPACE", "THE CITADEL OF ORDERS"];
   biomes.forEach(biome => {
     const label = document.createElement('label');
     label.className = 'chk';
