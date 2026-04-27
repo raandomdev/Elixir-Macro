@@ -4,7 +4,7 @@
         "display": "Normal",
         "visuals": {
             "primary_hex": "0xC8DED7",
-            "preview_image": "https://raw.githubusercontent.com/vexsyx/OysterDetector/refs/heads/main/assets/normal.png",
+            "preview_image": "https://raw.githubusercontent.com/raandomdev/Elixir-Macro/refs/heads/ui/assets/normal.png",
             "asset_id": 80690294537387
         },
         "unobtainable": false,
@@ -17,7 +17,7 @@
         "display": "Windy",
         "visuals": {
             "primary_hex": "0x90F6FF",
-            "preview_image": "https://raw.githubusercontent.com/vexsyx/OysterDetector/refs/heads/main/assets/windy.png",
+            "preview_image": "https://raw.githubusercontent.com/raandomdev/Elixir-Macro/refs/heads/ui/assets/windy.png",
             "asset_id": 138169499467564
         },
         "unobtainable": false,
@@ -30,7 +30,7 @@
         "display": "Rainy",
         "visuals": {
             "primary_hex": "0x4284FF",
-            "preview_image": "https://raw.githubusercontent.com/vexsyx/OysterDetector/refs/heads/main/assets/rainy.png",
+            "preview_image": "https://raw.githubusercontent.com/raandomdev/Elixir-Macro/refs/heads/ui/assets/rainy.png",
             "asset_id": 137992545432987
         },
         "unobtainable": false,
@@ -43,7 +43,7 @@
         "display": "Snowy",
         "visuals": {
             "primary_hex": "0xA6FFFF",
-            "preview_image": "https://raw.githubusercontent.com/vexsyx/OysterDetector/refs/heads/main/assets/snowy.png",
+            "preview_image": "https://raw.githubusercontent.com/raandomdev/Elixir-Macro/refs/heads/ui/assets/snowy.png",
             "asset_id": 109912975653138
         },
         "unobtainable": false,
@@ -56,7 +56,7 @@
         "display": "Sand Storm",
         "visuals": {
             "primary_hex": "0xFFCB81",
-            "preview_image": "https://raw.githubusercontent.com/vexsyx/OysterDetector/refs/heads/main/assets/sand%20storm.png",
+            "preview_image": "https://raw.githubusercontent.com/raandomdev/Elixir-Macro/refs/heads/ui/assets/sandstorm.png",
             "asset_id": 102180669654341
         },
         "unobtainable": false,
@@ -69,7 +69,7 @@
         "display": "Hell",
         "visuals": {
             "primary_hex": "0x7E1617",
-            "preview_image": "https://raw.githubusercontent.com/vexsyx/OysterDetector/refs/heads/main/assets/hell.png",
+            "preview_image": "https://raw.githubusercontent.com/raandomdev/Elixir-Macro/refs/heads/ui/assets/hell.png",
             "asset_id": 89721298978404
         },
         "unobtainable": false,
@@ -82,7 +82,7 @@
         "display": "Starfall",
         "visuals": {
             "primary_hex": "0x6085FF",
-            "preview_image": "https://raw.githubusercontent.com/vexsyx/OysterDetector/refs/heads/main/assets/starfall.png",
+            "preview_image": "https://raw.githubusercontent.com/raandomdev/Elixir-Macro/refs/heads/ui/assets/starrrrrfalll.png",
             "asset_id": 110087292131274
         },
         "unobtainable": false,
@@ -95,7 +95,7 @@
         "display": "Heaven",
         "visuals": {
             "primary_hex": "0xD6A22D",
-            "preview_image": "https://raw.githubusercontent.com/vexsyx/OysterDetector/refs/heads/main/assets/heaven.png",
+            "preview_image": "https://raw.githubusercontent.com/raandomdev/Elixir-Macro/refs/heads/ui/assets/heaven.png",
             "asset_id": 100160513248702
         },
         "unobtainable": false,
@@ -108,7 +108,7 @@
         "display": "Corruption",
         "visuals": {
             "primary_hex": "0x9143FF",
-            "preview_image": "https://raw.githubusercontent.com/vexsyx/OysterDetector/refs/heads/main/assets/corruption.png",
+            "preview_image": "https://raw.githubusercontent.com/raandomdev/Elixir-Macro/refs/heads/ui/assets/corruption.png",
             "asset_id": 137622939436355
         },
         "unobtainable": false,
@@ -121,7 +121,7 @@
         "display": "Null",
         "visuals": {
             "primary_hex": "0x3B3B3B",
-            "preview_image": "https://raw.githubusercontent.com/vexsyx/OysterDetector/refs/heads/main/assets/null.png",
+            "preview_image": "https://raw.githubusercontent.com/raandomdev/Elixir-Macro/refs/heads/ui/assets/null.png",
             "asset_id": 120277135407020
         },
         "unobtainable": false,
@@ -204,7 +204,7 @@
         "display": "Eggland",
         "visuals": {
             "primary_hex": "0xADE64C",
-            "preview_image": "https://raw.githubusercontent.com/vexsyx/OysterDetector/refs/heads/main/assets/eggland.png",
+            "preview_image": "https://raw.githubusercontent.com/raandomdev/Elixir-Macro/refs/heads/ui/assets/eggland.png",
             "asset_id": 107114559110957
         },
         "unobtainable": false,
@@ -218,7 +218,7 @@
         "display": "Glitched",
         "visuals": {
             "primary_hex": "0x209e2a",
-            "preview_image": "https://raw.githubusercontent.com/vexsyx/OysterDetector/refs/heads/main/assets/glitched.png",
+            "preview_image": "https://raw.githubusercontent.com/raandomdev/Elixir-Macro/refs/heads/ui/assets/glitched.png",
             "asset_id": 92180140049616
         },
         "unobtainable": false,
@@ -233,7 +233,7 @@
         "display": "Dreamspace",
         "visuals": {
             "primary_hex": "0xEA9DDA",
-            "preview_image": "https://raw.githubusercontent.com/vexsyx/OysterDetector/refs/heads/main/assets/dreamspace.png",
+            "preview_image": "https://raw.githubusercontent.com/raandomdev/Elixir-Macro/refs/heads/ui/assets/dreamspace.png",
             "asset_id": 124768988619166
         },
         "unobtainable": false,
@@ -248,7 +248,7 @@
         "display": "Cyberspace",
         "visuals": {
             "primary_hex": "0x1C3266",
-            "preview_image": "https://raw.githubusercontent.com/vexsyx/OysterDetector/refs/heads/main/assets/cyberspace.png",
+            "preview_image": "https://raw.githubusercontent.com/raandomdev/Elixir-Macro/refs/heads/ui/assets/cyberspace.png",
             "asset_id": 89000537898277
         },
         "unobtainable": false,
