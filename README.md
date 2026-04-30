@@ -1,4 +1,6 @@
-# Elixir-Macro
+# (Elixir Icon)[https://raw.githubusercontent.com/raandomdev/Elixir-Macro/refs/heads/ui/assets/icon.png]
+
+Elixir-Macro
 A Sol's RNG based macro, basic and best to use.
 
 <a href="https://github.com/raandomdev/Elixir-Macro/releases/latest"><img src="https://img.shields.io/github/v/release/raandomdev/Elixir-Macro?color=d774d5" /></a>
