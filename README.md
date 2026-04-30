@@ -1,7 +1,5 @@
-# (Elixir Icon)[https://raw.githubusercontent.com/raandomdev/Elixir-Macro/refs/heads/ui/assets/icon.png]
-
-Elixir-Macro
-A Sol's RNG based macro, basic and best to use.
+# ![Elixir Macro](https://raw.githubusercontent.com/raandomdev/Elixir-Macro/refs/heads/ui/assets/icon.png)Elixir-Macro
+## A Sol's RNG based macro, basic and best to use. Oh yea for macOS too!
 
 <a href="https://github.com/raandomdev/Elixir-Macro/releases/latest"><img src="https://img.shields.io/github/v/release/raandomdev/Elixir-Macro?color=d774d5" /></a>
 <a href="https://github.com/raandomdev/Elixir-Macro/releases"><img src="https://img.shields.io/github/downloads/raandomdev/Elixir-Macro/total?color=d774d5" /></a>
@@ -10,7 +8,7 @@ A Sol's RNG based macro, basic and best to use.
 > Theses are the official links for Elixir Macro.
 > 
 > The latest github releases [here](https://github.com/raandomdev/Elixir-Macro/releases/latest)
-
+>
 > The official wiki [here](https://sol-rng.fandom.com/wiki/Macros/Spacedev)
 >
 > 
