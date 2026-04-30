@@ -1,64 +1,95 @@
-# ![Elixir Macro](https://raw.githubusercontent.com/raandomdev/Elixir-Macro/refs/heads/ui/assets/icon.png)Elixir-Macro
-## A Sol's RNG based macro, basic and best to use. Oh yea for macOS too!
+# Elixir Macro
+## A **Sol's RNG** macro — simple, efficient, and macOS supported.
 
-<a href="https://github.com/raandomdev/Elixir-Macro/releases/latest"><img src="https://img.shields.io/github/v/release/raandomdev/Elixir-Macro?color=d774d5" /></a>
-<a href="https://github.com/raandomdev/Elixir-Macro/releases"><img src="https://img.shields.io/github/downloads/raandomdev/Elixir-Macro/total?color=d774d5" /></a>
+<p align="center">
+  <a href="https://github.com/raandomdev/Elixir-Macro/releases/latest">
+    <img src="https://img.shields.io/github/v/release/raandomdev/Elixir-Macro?color=d774d5&label=Latest%20Release" />
+  </a>
+  <a href="https://github.com/raandomdev/Elixir-Macro/releases">
+    <img src="https://img.shields.io/github/downloads/raandomdev/Elixir-Macro/total?color=d774d5&label=Downloads" />
+  </a>
+</p>
+
+---
 
 > [!CAUTION]
-> Theses are the official links for Elixir Macro.
-> 
-> The latest github releases [here](https://github.com/raandomdev/Elixir-Macro/releases/latest)
+> These are the **official links** for Elixir Macro.  
+> Any other websites, downloads, or reuploads claiming to be Elixir are **fake**.
 >
-> The official wiki [here](https://sol-rng.fandom.com/wiki/Macros/Spacedev)
+> - 🔗 Latest release: https://github.com/raandomdev/Elixir-Macro/releases/latest  
+> - 📖 Official wiki: https://sol-rng.fandom.com/wiki/Macros/Spacedev  
+
+---
+
+> [!IMPORTANT]
+> - You are using this software **at your own risk**.  
+> - We are **not responsible** for bans or account actions.  
+> - ❌ No external apps are required.  
+>   - If someone claims otherwise → **report them immediately**.
+
+---
+
+> [!WARNING]
+> - This project is protected under the **Apache 2.0 License**.  
+> - If you use our code:
+>   - ✅ You **must provide credit**  
+>   - ✅ You **must include the license**
 >
-> 
-Yes — under the Apache 2.0 license, *you absolutely can* update (modify) any code — including macros — *regardless of the original owner's current approval*. The license grants a broad, irrevocable copyright and patent license to:
-
-1. **Reproduce**
-2. **Prepare derivative works**
-3. **Distribute** those works
-   …*without needing further permission* ([apache.org][1]).
-
----
-<img width="681" height="425" alt="image" src="https://github.com/user-attachments/assets/6d1d5a75-5693-4307-af9e-72c63009fccc" />
-
-### ✅ What You Must Do Under Apache 2.0
-
-Section 4 of the license outlines your obligations when distributing modified code ([en.wikipedia.org][2]):
-
-* **Include a copy of the full Apache 2.0 license** with your distribution.
-* **Mark any modified files** clearly with a prominent notice that *you changed them*.
-* **Preserve existing copyright, patent, trademark, and attribution notices** from the original code.
-* **If the original has a NOTICE file**, include its contents (or relevant excerpts) alongside it in your derivative work.
+> Failure to comply may result in:
+> - DMCA takedowns  
+> - Legal action  
 
 ---
 
-### ❌ You Cannot:
-
-* Remove or falsify the original authors’ copyright or license notices.
-* Omit notices that indicate changes you made.
-
----
-
-### ✅ You Can:
-
-* Modify any part of the code.
-* Distribute your modified version under any license of your choosing **as long as** you continue to comply with the original Apache 2.0 terms concerning the untouched parts. You *can* even use a different license (e.g., proprietary) for your modifications *on top of* the Apache-compliant redistributed portions ([fossa.com][3], [apache.org][1], [reddit.com][4], [mend.io][5]).
+> [!NOTE]
+> - Versions **below v1.1.0 do NOT work**.  
+> - Always use the **latest version** to ensure:
+>   - Compatibility with current Sol's RNG updates  
+>   - Bug fixes & improvements  
 
 ---
 
-### TL;DR
+<p align="center">
+  <a href="https://github.com/raandomdev/Elixir-Macro/stargazers">
+    <img src="https://img.shields.io/github/stars/raandomdev/Elixir-Macro?style=for-the-badge&color=2d2d2d&labelColor=1a1a1a&logoColor=66ccff" />
+  </a>
+  <a href="https://github.com/raandomdev/Elixir-Macro/network/members">
+    <img src="https://img.shields.io/github/forks/raandomdev/Elixir-Macro?style=for-the-badge&color=2d2d2d&labelColor=1a1a1a&logoColor=66ccff" />
+  </a>
+  <a href="https://github.com/raandomdev/Elixir-Macro/blob/main/LICENSE">
+    <img src="https://img.shields.io/github/license/raandomdev/Elixir-Macro?style=for-the-badge&color=2d2d2d&labelColor=1a1a1a&logoColor=66ccff" />
+  </a>
+  <a href="https://github.com/raandomdev/Elixir-Macro/releases/latest">
+    <img src="https://img.shields.io/github/v/release/raandomdev/Elixir-Macro?style=for-the-badge&color=2d2d2d&labelColor=1a1a1a&logoColor=66ccff" />
+  </a>
+  <a href="https://discord.gg/uJNvXVryvD">
+    <img src="https://img.shields.io/badge/Discord-Join%20Server-2d2d2d?style=for-the-badge&logo=discord&logoColor=66ccff&labelColor=1a1a1a" />
+  </a>
+</p>
 
-* The Apache 2.0 license **gives you the right** to modify and redistribute the code without needing the owner's explicit permission for each change.
-* **You’re legally bound** to carry forward the original license and copyright notices, **state your changes**, and include the NOTICE file if present.
+---
 
-Let me know if you'd like help drafting your license headers or arranging your NOTICE file!
 
-[1]: https://www.apache.org/licenses/LICENSE-2.0?utm_source=chatgpt.com "Apache License, Version 2.0"
-[2]: https://en.wikipedia.org/wiki/Apache_License?utm_source=chatgpt.com "Apache License"
-[3]: https://fossa.com/blog/open-source-licenses-101-apache-license-2-0/?utm_source=chatgpt.com "Open Source Licenses 101: Apache License 2.0 | FOSSA Blog"
-[4]: https://www.reddit.com/r/SoftwareEngineering/comments/1aw8evp/changing_the_author_on_apache_20_license/?utm_source=chatgpt.com "Changing the author on Apache 2.0 license : r/SoftwareEngineering"
-[5]: https://www.mend.io/blog/top-10-apache-license-questions-answered/?utm_source=chatgpt.com "Top 10 Questions About The Apache License - Mend.io"
+## Preview
+<p align="center">
+  <img width="681" height="425" src="https://github.com/user-attachments/assets/6d1d5a75-5693-4307-af9e-72c63009fccc" />
+</p>
 
-## TOOK THIS README FROM [GITHUB USER](https://github.com/xVapure/Noteab-Macro/blob/main/Notice%20to%20people%20telling%20me%20I%20cannot%20update%20Noteab%20macro.txt)
-Credits to them for using it.
+---
+
+# Features
+> - **Biome/Aura detection:** Perfect 99.99% accuracy.
+> - **Auto Equip:** Can be use to reduce lag while going around the map. Since it has major VFX.
+> - **Item Collection:** If certain players doesn't have VIP+ or the Item Collecter gear from jake. They can rely on this pathing.
+> - **Auto Obby:** Pathing for the obby to get 30% blessing.
+> - **Auto Chailce:** Used for the mountain for biome relics.
+> - **Discord Intergrations:** For Precise webhook notifcations.
+> - **Crafting:** For both Stella and Jake, you may **ONLY** use one since the auto add switched between Jake and Stella.
+> - **Auto Quest:** Used for completing quest from your Daily quest page.
+> - **VIP+/VIP:** Pathing
+> - **Azerty keyboard layout:** Used for different keyboard layouts if your in the Pacific Time.
+> - **Click and Input delay:** Used for laggy PC's if your games lags during opening pages in the Sol's RNG game. This can be used for delaying the amount of seconds your mouse/keyboard movements.
+> - **Item Scheduler:** Used for using items during a x amount of minutes. (Not forced on Biome Randomizer/Strange Controller)
+> - **Custom Pathing:** This can be used for creating a different pathing system for Item collection/Crafting if you feel like the pathing takes long or is laging behind 
+
+> 💡 Use official sources only. Stay updated.
