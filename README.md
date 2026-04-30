@@ -3,6 +3,7 @@ A Sol's RNG based macro, basic and best to use.
 
 <a href="https://github.com/raandomdev/Elixir-Macro//releases/latest"><img src="https://img.shields.io/github/v/release/raandomdev/Elixir-Macro?color=d774d5" /></a>
 <a href="https://github.com/raandomdev/Elixir-Macro//releases"><img src="https://img.shields.io/github/downloads/raandomdev/Elixir-Macro/total?color=d774d5" /></a>
+< [!CAUTION]
 
 Yes — under the Apache 2.0 license, *you absolutely can* update (modify) any code — including macros — *regardless of the original owner's current approval*. The license grants a broad, irrevocable copyright and patent license to:
 
