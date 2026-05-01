@@ -16,7 +16,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
-        python-version: '3.11'
+        python-version: '3.13'
         architecture: 'arm64'
     
     - name: Install system dependencies
@@ -36,12 +36,13 @@ jobs:
           ICON_ARG="--icon=icon.icns"
         fi
         pyinstaller \
-          --onedir \
+          --onefile \
           --windowed \
           --target-arch=arm64 \
           $ICON_ARG \
-          --name="Elixir Macro (MacOS ARM64)" \
+          --name="Elixir Macro (MacOS)" \
           --hidden-import=ttkbootstrap \
+          --collect-all pywebview \
           app.pyw
     
     - name: Upload build artifact
