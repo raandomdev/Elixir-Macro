@@ -2,21 +2,21 @@
 ## A **Sol's RNG** macro — simple, efficient, and macOS supported.
 
 <p align="center">
-  <a href="https://github.com/raandomdev/Elixir-Macro/releases/latest">
-    <img src="https://img.shields.io/github/v/release/raandomdev/Elixir-Macro?color=d774d5&label=Latest%20Release" />
+  <a href="https://github.com/raandomdev/Radiance-Macro/releases/latest">
+    <img src="https://img.shields.io/github/v/release/raandomdev/Radiance-Macro?color=d774d5&label=Latest%20Release" />
   </a>
-  <a href="https://github.com/raandomdev/Elixir-Macro/releases">
-    <img src="https://img.shields.io/github/downloads/raandomdev/Elixir-Macro/total?color=d774d5&label=Downloads" />
+  <a href="https://github.com/raandomdev/Radiance-Macro/releases">
+    <img src="https://img.shields.io/github/downloads/raandomdev/Radiance-Macro/total?color=d774d5&label=Downloads" />
   </a>
 </p>
 
 ---
 
 > [!CAUTION]
-> These are the **official links** for Elixir Macro.  
-> Any other websites, downloads, or reuploads claiming to be Elixir are **fake**.
+> These are the **official links** for Radiance Macro.  
+> Any other websites, downloads, or reuploads claiming to be Radiance are **fake**.
 >
-> - 🔗 Latest release: https://github.com/raandomdev/Elixir-Macro/releases/latest  
+> - 🔗 Latest release: https://github.com/raandomdev/Radiance-Macro/releases/latest  
 > - 📖 Official wiki: https://sol-rng.fandom.com/wiki/Macros/Spacedev  
 
 ---
@@ -50,17 +50,17 @@
 ---
 
 <p align="center">
-  <a href="https://github.com/raandomdev/Elixir-Macro/stargazers">
+  <a href="https://github.com/raandomdev/Radiance-Macro/stargazers">
     <img src="https://img.shields.io/github/stars/raandomdev/Elixir-Macro?style=for-the-badge&color=2d2d2d&labelColor=1a1a1a&logoColor=66ccff" />
   </a>
-  <a href="https://github.com/raandomdev/Elixir-Macro/network/members">
-    <img src="https://img.shields.io/github/forks/raandomdev/Elixir-Macro?style=for-the-badge&color=2d2d2d&labelColor=1a1a1a&logoColor=66ccff" />
+  <a href="https://github.com/raandomdev/Radiance-Macro/network/members">
+    <img src="https://img.shields.io/github/forks/raandomdev/Radiance-Macro?style=for-the-badge&color=2d2d2d&labelColor=1a1a1a&logoColor=66ccff" />
   </a>
-  <a href="https://github.com/raandomdev/Elixir-Macro/blob/main/LICENSE">
-    <img src="https://img.shields.io/github/license/raandomdev/Elixir-Macro?style=for-the-badge&color=2d2d2d&labelColor=1a1a1a&logoColor=66ccff" />
+  <a href="https://github.com/raandomdev/Radiance-Macro/blob/main/LICENSE">
+    <img src="https://img.shields.io/github/license/raandomdev/Radiance-Macro?style=for-the-badge&color=2d2d2d&labelColor=1a1a1a&logoColor=66ccff" />
   </a>
-  <a href="https://github.com/raandomdev/Elixir-Macro/releases/latest">
-    <img src="https://img.shields.io/github/v/release/raandomdev/Elixir-Macro?style=for-the-badge&color=2d2d2d&labelColor=1a1a1a&logoColor=66ccff" />
+  <a href="https://github.com/raandomdev/Radiance-Macro/releases/latest">
+    <img src="https://img.shields.io/github/v/release/raandomdev/Radiance-Macro?style=for-the-badge&color=2d2d2d&labelColor=1a1a1a&logoColor=66ccff" />
   </a>
   <a href="https://discord.gg/uJNvXVryvD">
     <img src="https://img.shields.io/badge/Discord-Join%20Server-2d2d2d?style=for-the-badge&logo=discord&logoColor=66ccff&labelColor=1a1a1a" />
