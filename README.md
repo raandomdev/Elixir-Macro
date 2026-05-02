@@ -1,4 +1,4 @@
-# Elixir Macro
+# Radiance Macro
 ## A **Sol's RNG** macro — simple, efficient, and macOS supported.
 
 <p align="center">
