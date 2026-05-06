@@ -12,133 +12,63 @@ import requests
 import re
 import logging
 from pathlib import Path
-import shutil
 
-# Cross-platform input libraries
 try:
-    import mouse
+    import discord_webhook
     import keyboard
     import pyautogui as auto
     import webview
-    import mss
-    from PIL import ImageGrab, Image
     import pytesseract
+    from PIL import ImageGrab, Image
 except ImportError as e:
+    messagebox.showerror("Import Error", f"Missing module: {e}\nPlease install required packages.")
+    sys.exit(1)
+
+ahk = None
+if sys.platform == "win32":
     try:
-        import tkinter as tk
-    except ImportError:
-        messagebox.showerror("Import Error", f"Missing module: {e}\nPlease install required packages.")
-        sys.exit(1)
-
-# ------------------------------------------------------------
-#  Tesseract path detection (works in bundled .app)
-# ------------------------------------------------------------
-def find_tesseract():
-    """Locate tesseract executable, even inside a bundled .app."""
-    # First try shutil.which (respects PATH)
-    tesseract_cmd = shutil.which('tesseract')
-    if tesseract_cmd:
-        return tesseract_cmd
-    # Fallback for standard Homebrew locations on Apple Silicon and Intel
-    for path in [
-        "/opt/homebrew/bin/tesseract",
-        "/usr/local/bin/tesseract"
-    ]:
-        if os.path.exists(path):
-            return path
-    return None
-
-tesseract_path = find_tesseract()
-if tesseract_path:
-    pytesseract.pytesseract.tesseract_cmd = tesseract_path
-else:
-    print("Tesseract not found. OCR will fail. Install via 'brew install tesseract'")
+        from ahk import AHK
+        ahk = AHK()
+    except Exception as e:
+        print(f"AHK import failed: {e}")
 
 sys.dont_write_bytecode = True
+
 CONFIG_FILE = "config.json"
-CURRENT_VERSION = "1.1.3"
+CURRENT_VERSION = "1.1.4"
 
 def get_current_version():
     return CURRENT_VERSION
 
-# ------------------------------------------------------------
-#  Path resolution for writable user data and bundled assets
-# ------------------------------------------------------------
-def get_writable_base():
-    """Return a writable directory for config.json, logs, images, and user path scripts."""
-    # Always use a fixed location in user's Documents to avoid permission issues
-    base = pathlib.Path(os.path.expanduser("~")) / "Documents" / "Goldens_Macro"
-    base.mkdir(parents=True, exist_ok=True)
-    return base
-
-def get_bundle_resources_dir():
-    """Return the path to the Resources folder inside the .app bundle (if frozen)."""
-    if getattr(sys, 'frozen', False):
-        # PyInstaller: sys._MEIPASS points to the bundle's resource directory
-        if hasattr(sys, '_MEIPASS'):
-            return pathlib.Path(sys._MEIPASS)
-        # py2app: resources are next to the executable inside .app/Contents/Resources
-        exe_dir = pathlib.Path(sys.executable).parent
-        if (exe_dir / 'Resources').exists():
-            return exe_dir / 'Resources'
-        return exe_dir
-    else:
-        # Running as script, resources are in the same folder as the script
-        return pathlib.Path(__file__).parent
-
 def get_config_path():
-    """Return path to config.json in the writable user directory."""
-    return get_writable_base() / CONFIG_FILE
-
-def get_paths_dir():
-    """Return the writable directory where user path scripts are stored."""
-    paths_dir = get_writable_base() / "paths"
-    paths_dir.mkdir(parents=True, exist_ok=True)
-    return paths_dir
-
-def get_bundle_paths_dir():
-    """Return the directory containing default path scripts (inside the .app bundle)."""
-    resources = get_bundle_resources_dir()
-    return resources / "paths"
-
-def get_action(file):
-    """Read pathing script: first from user's writable paths, then from bundle/default."""
-    try:
-        # User script (writable)
-        user_script = get_paths_dir() / f"{file}.py"
-        if user_script.exists():
-            with open(user_script, 'r') as f:
-                return f.read()
-        # Default script from bundle
-        bundle_script = get_bundle_paths_dir() / f"{file}.py"
-        if bundle_script.exists():
-            with open(bundle_script, 'r') as f:
-                return f.read()
-        print(f"Path file not found: {file}.py")
-        return ""
-    except Exception as e:
-        print(f"Failed to load path {file}: {e}")
-        return ""
+    """Return path to config.json in the application directory."""
+    if getattr(sys, 'frozen', False):
+        base = pathlib.Path(sys.executable).parent.resolve()
+    else:
+        base = pathlib.Path(__file__).parent.resolve()
+    return base / CONFIG_FILE
 
 def set_path():
-    """Create path.txt and ensure directories exist in the writable base."""
+    """Create path.txt with application directory."""
     try:
-        base = get_writable_base()
+        if getattr(sys, 'frozen', False):
+            base = pathlib.Path(sys.executable).parent.resolve()
+            if "_MEIPASS" in str(base) or "_temp_" in str(base):
+                base = pathlib.Path(os.path.expanduser("~")) / "Documents" / "Goldens_Macro"
+                base.mkdir(parents=True, exist_ok=True)
+        else:
+            base = pathlib.Path(__file__).parent.resolve()
+        
         path_file = base / "path.txt"
         with open(path_file, "w") as f:
             f.write(str(base))
-        # Ensure writable paths folder exists
-        get_paths_dir()
-        # Ensure logs and images folders exist
-        (base / "logs").mkdir(exist_ok=True)
-        (base / "images").mkdir(exist_ok=True)
+        
+        (base / "paths").mkdir(parents=True, exist_ok=True)
     except Exception as e:
         messagebox.showerror("Error", f"Could not set path: {e}")
 
-# ------------------------------------------------------------
-#  Config management (unchanged logic)
-# ------------------------------------------------------------
 def deep_merge(a, b):
+    """Recursively merge dict b into dict a (modifies a in place)."""
     for k in b:
         if k in a and isinstance(a[k], dict) and isinstance(b[k], dict):
             deep_merge(a[k], b[k])
@@ -146,22 +76,15 @@ def deep_merge(a, b):
             a[k] = b[k]
 
 def read_config():
+    """Load configuration from JSON file. Return default if missing."""
     default_config = {
-        "system_buttons": {
-            "start": "F1",
-            "stop": "F2",
-            "restart": "F3"
-        },
         "settings": {
             "vip_mode": "0",
             "vip+_mode": "0",
             "azerty_mode": "0",
             "reset": "1",
             "merchant": {"enabled": "0", "duration": "60"},
-            "click_delay": "0.40",
-            "enable_play_joins": "0",
-            "record_biome": "0",
-            "play_recording_duration": "30"
+            "click_delay": "0.55"
         },
         "discord": {
             "webhook": {
@@ -203,9 +126,7 @@ def read_config():
             "enabled": "0",
             "item_name": "",
             "item_scheduler_quantity": "1",
-            "interval": "30",
-            "enable_only_if_biome": "0",
-            "biome": []
+            "interval": "30"
         },
         "biome_detection": {"enabled": "0"},
         "enabled_dectection": "0",
@@ -215,7 +136,7 @@ def read_config():
         "jester": {"ping": {"enabled": "0", "id": ""}, "settings": {}},
         "fishing": {"enabled": "0", "live_preview": "0", "capture_fps": "60", "color_tolerance": "1", "auto_buy": "0"},
         "biome_alerts": {
-            "NORMAL": "0", "WINDY": "0", "RAINY": "0", "SNOWY": "0", "EGGLAND": "1", "SINGULARITY": "0",
+            "NORMAL": "0", "WINDY": "0", "RAINY": "0", "SNOWY": "0",
             "SAND STORM": "0", "HELL": "0", "STARFALL": "0", "HEAVEN": "0",
             "CORRUPTION": "0", "NULL": "0", "GLITCHED": "0", "DREAMSPACE": "0",
             "CYBERSPACE": "0", "THE CITADEL OF ORDERS": "0"
@@ -273,6 +194,7 @@ def read_config():
     return default_config
 
 def save_config(cfg):
+    """Save configuration to JSON file."""
     cfg_path = get_config_path()
     try:
         with open(cfg_path, 'w') as f:
@@ -282,18 +204,11 @@ def save_config(cfg):
 
 config_data = read_config()
 
-# ------------------------------------------------------------
-#  OCR helpers
-# ------------------------------------------------------------
-def perform_ocr(x, y, w, h, quality="normal"):
+def perform_ocr(x, y, w, h):
+    """Capture screen region and return recognized text."""
     try:
-        with mss.mss() as sct:
-            monitor = {"top": y, "left": x, "width": w, "height": h}
-            img = sct.grab(monitor)
-            img = Image.frombytes("RGB", img.size, img.bgra, "raw", "BGRX")
-        if quality == "fast":
-            new_size = (max(1, img.width // 2), max(1, img.height // 2))
-            img = img.resize(new_size, Image.LANCZOS)
+        bbox = (x, y, x + w, y + h)
+        img = ImageGrab.grab(bbox)
         text = pytesseract.image_to_string(img, config='--psm 6').strip()
         return text
     except Exception as e:
@@ -301,17 +216,17 @@ def perform_ocr(x, y, w, h, quality="normal"):
         return ""
 
 def search_text_in_ocr(text, search):
+    """Return True if search term is found in OCR text (case-insensitive)."""
     return search.lower() in text.lower()
 
 def check_ocr_text(x, y, w, h, expected):
+    """Return True if OCR text contains expected string."""
     return search_text_in_ocr(perform_ocr(x, y, w, h), expected)
 
 def get_ocr_text(x, y, w, h):
+    """Return OCR text from region."""
     return perform_ocr(x, y, w, h)
 
-# ------------------------------------------------------------
-#  BiomeTracker (full version from original, no changes)
-# ------------------------------------------------------------
 class BiomeTracker:
     def __init__(self, config):
         self.config = config
@@ -330,15 +245,15 @@ class BiomeTracker:
         self.last_sent_aura = None
         self._running = False
         self._monitor_task = None
-        self.biome_count = 0
         self.create_log_file()
 
     def create_log_file(self):
-        log_dir = get_writable_base() / "logs"
+        log_dir = Path("logs")
         log_dir.mkdir(parents=True, exist_ok=True)
         timestamp = datetime.now().strftime("%m-%d-%Y %H-%M-%S")
         log_filename = log_dir / f"{timestamp} biome_tracker.log"
         
+        # Clear existing handlers to avoid duplicate logs
         for handler in logging.root.handlers[:]:
             logging.root.removeHandler(handler)
         
@@ -355,7 +270,7 @@ class BiomeTracker:
     def _load_biome_data(self):
         try:
             response = requests.get(
-                "https://raw.githubusercontent.com/raandomdev/Elixir-Macro/refs/heads/ui/assets/biome-data.json",
+                "https://raw.githubusercontent.com/vexsyx/OysterDetector/refs/heads/main/data/biome-data.json",
                 timeout=5
             )
             response.raise_for_status()
@@ -390,6 +305,7 @@ class BiomeTracker:
         return None
 
     async def monitor_logs(self):
+        """Begin monitoring the Roblox log files until stopped via `stop_monitoring`."""
         self._running = True
         log_dir = self._get_log_dir()
         if not log_dir or not log_dir.exists():
@@ -412,12 +328,16 @@ class BiomeTracker:
                 with open(latest_log, "r", errors="ignore") as f:
                     if latest_log.stat().st_size < self.last_processed_position:
                         self.last_processed_position = 0
+
                     f.seek(self.last_processed_position)
                     lines = f.readlines()
                     self.last_processed_position = f.tell()
+
                     for line in lines:
                         await self._process_log_entry(line)
+
                 await asyncio.sleep(1)
+
             except Exception as e:
                 logging.error(f"Log monitoring error: {str(e)}")
                 await asyncio.sleep(5)
@@ -434,10 +354,12 @@ class BiomeTracker:
             return
         if self.config.get("biome_detection", {}).get("enabled") != "1":
             return
+        
         try:
             json_str = line.split("[BloxstrapRPC] ")[1]
             data = json.loads(json_str)
             hover_text = data.get("data", {}).get("largeImage", {}).get("hoverText", "")
+
             if hover_text in self.biomes and self.current_biome != hover_text:
                 self._handle_new_biome(hover_text)
         except (IndexError, json.JSONDecodeError):
@@ -450,13 +372,16 @@ class BiomeTracker:
             self.current_biome = biome_name
             self.biome_counts[biome_name] = self.biome_counts.get(biome_name, 0) + 1
             logging.info(f"Biome detected: {biome_name}")
+
             if biome_name != self.last_sent_biome:
                 biome_data = self.biomes.get(biome_name)
                 if not biome_data:
                     logging.warning(f"Biome data missing for: {biome_name}")
                     return
+
                 special_biomes = ["GLITCHED", "DREAMSPACE", "CYBERSPACE", "THE CITADEL OF ORDERS"]
                 should_send = biome_name in special_biomes or self.config.get('biome_alerts', {}).get(biome_name) == "1"
+
                 if should_send:
                     color = int(biome_data.get("visuals", {}).get("primary_hex", "FFFFFF"), 16)
                     self._send_webhook(
@@ -467,19 +392,22 @@ class BiomeTracker:
                         urgent=biome_name in special_biomes,
                         is_aura=False,
                     )
+
                 self.last_sent_biome = biome_name
+
         except Exception as e:
             logging.error(f"Biome handling error: {str(e)}")
 
     def _check_aura_equipped(self, line):
         if "[BloxstrapRPC]" not in line:
             return
-        if self.config.get("enabled_dectection") != "1":
+        if self.config.get("enabled_dectection") != "1":  # Fixed typo in key name
             return
         try:
             json_str = line.split("[BloxstrapRPC] ")[1]
             data = json.loads(json_str)
             state = data.get("data", {}).get("state", "")
+
             match = re.search(r'Equipped "(.*?)"', state)
             if match:
                 aura_name = match.group(1)
@@ -496,12 +424,15 @@ class BiomeTracker:
             if not aura:
                 logging.warning(f"Aura data missing for: {aura_name}")
                 return
+                
             aura_data = aura.get("properties", {})
             visuals = aura.get("visuals", {})
             thumbnail = visuals.get("preview_image")
+
             base_chance = aura_data.get("base_chance", 0)
             rarity = base_chance
             obtained_biome = None
+
             biome_amplifier = aura_data.get("biome_amplifier", ["None", 1])
             if isinstance(biome_amplifier, list) and len(biome_amplifier) >= 2:
                 if biome_amplifier[0] != "None" and (
@@ -510,7 +441,9 @@ class BiomeTracker:
                 ):
                     rarity /= max(biome_amplifier[1], 0.001)
                     obtained_biome = self.current_biome
+
             rarity = int(rarity)
+
             if aura_data.get("rank") == "challenged":
                 color = 0x808090
             else:
@@ -530,15 +463,19 @@ class BiomeTracker:
                     color = 0x8B0000
                 else:
                     color = 0x00FFFF
+
             fields = []
             if base_chance == 0:
                 rarity_str = "Unobtainable"
             else:
                 rarity_str = f"1 in {rarity:,}"
             fields.append({"name": "Rarity", "value": rarity_str, "inline": True})
+
             if obtained_biome:
                 fields.append({"name": "Obtained From", "value": obtained_biome, "inline": True})
+
             logging.info(f"Aura equipped: {aura_name} (1 in {rarity:,})")
+
             if aura_name != self.last_sent_aura:
                 self._send_webhook(
                     title="**Aura Detection**",
@@ -549,17 +486,22 @@ class BiomeTracker:
                     fields=fields,
                 )
                 self.last_sent_aura = aura_name
+
         except ZeroDivisionError:
             logging.error("Invalid biome amplifier value (division by zero)")
         except Exception as e:
             logging.error(f"Aura processing error: {str(e)}")
 
-    def _send_webhook(self, title, description, color, thumbnail=None, urgent=False, is_aura=False, fields=None):
+    def _send_webhook(
+        self, title, description, color, thumbnail=None, urgent=False, is_aura=False, fields=None
+    ):
         if not self.webhook_url:
             logging.error("Webhook URL not set.")
             return
+
         try:
             current_time = datetime.now().isoformat()
+
             embed = {
                 "title": title,
                 "description": description,
@@ -570,29 +512,38 @@ class BiomeTracker:
                     "icon_url": "https://goldfish-cool.github.io/Goldens-Macro/golden_pfp.png"
                 },
             }
+
             if fields is not None:
                 embed["fields"] = fields
             else:
                 if not is_aura:
-                    ps_link = self.private_server_link if self.private_server_link and self.private_server_link.strip() else "-# brosquito didnt put a link :sob: :pray: yall r cooked :wilted_rose:"
+                    ps_link = self.private_server_link if self.private_server_link and self.private_server_link.strip() else "(no private server link)"
                     embed["fields"] = [{"name": "Private Server Link", "value": ps_link}]
+
             if thumbnail:
                 embed["thumbnail"] = {"url": thumbnail}
+
             content = ""
             if urgent:
                 content += "@everyone "
             if is_aura and self.user_id and self.user_id.strip():
                 content += f"<@{self.user_id}>"
+
             payload = {"content": content.strip(), "embeds": [embed]}
+
+            # Use asyncio.create_task only if we have an event loop
             try:
                 loop = asyncio.get_running_loop()
                 loop.create_task(self._send_webhook_async(payload))
             except RuntimeError:
+                # No running loop, create one
                 asyncio.run(self._send_webhook_async(payload))
+                
         except Exception as e:
             logging.error(f"Webhook creation error: {str(e)}")
 
     async def _send_webhook_async(self, payload):
+        """Helper to send webhook asynchronously."""
         try:
             response = await asyncio.to_thread(requests.post, self.webhook_url, json=payload, timeout=5)
             if response.status_code == 429:
@@ -606,55 +557,72 @@ class BiomeTracker:
             logging.error(f"Webhook failed: {str(e)}")
 
     def stop_monitoring(self):
+        """Signal the log‑monitoring loop to exit."""
         self._running = False
+        logging.info("Signaling BiomeTracker to stop...")
 
     def log(self, message):
         logging.info(message)
 
-# ------------------------------------------------------------
-#  Cross-platform input helpers (fixed for macOS)
-# ------------------------------------------------------------
+
 def platform_click(x, y, button='left'):
+    """Cross-platform click function with error handling."""
     try:
         x, y = int(x), int(y)
-        if 'mouse' in sys.modules:
-            mouse.move(x, y, duration=0.08)
-            mouse.click(button=button)
-        else:
+        if sys.platform == "win32":
+            if ahk:
+                ahk.click(x, y, coord_mode="Screen")
+            else:
+                auto.moveTo(x, y, duration=0.08)
+                auto.click(button=button)
+        elif sys.platform == "darwin":
             auto.moveTo(x, y, duration=0.08)
             auto.click(button=button)
     except Exception as e:
         print(f"Click error at ({x}, {y}): {e}")
 
 def platform_mouse_drag(x, y, fx, fy, drag_time, button="left"):
+    """Cross-platform drag function."""
     try:
-        if 'mouse' in sys.modules:
-            mouse.move(fx, fy, duration=0.05)
-            mouse.drag(x, y, duration=drag_time)
-        else:
+        if sys.platform == "win32":
+            if ahk:
+                ahk.mouse_drag(x, y, from_position=(fx, fy), relative=True, duration=drag_time, button=button)
+            else:
+                auto.moveTo(fx, fy)
+                auto.dragTo(x, y, duration=drag_time, button=button)
+        elif sys.platform == "darwin":
             auto.moveTo(fx, fy)
+            time.sleep(0.55)
             auto.dragTo(x, y, duration=drag_time, button=button)
     except Exception as e:
         print(f"Drag error: {e}")
 
 def platform_key_press(key):
+    """Cross-platform key press function."""
     try:
-        if key == '{Enter}':
-            key = 'enter'
-        if 'keyboard' in sys.modules:
-            keyboard.press_and_release(key)
-        else:
+        if sys.platform == "win32":
+            if ahk:
+                ahk.send(key)
+            else:
+                auto.press(key)
+        elif sys.platform == "darwin":
             auto.press(key)
     except Exception as e:
         print(f"Key press error: {e}")
 
 def platform_key_combo(key):
+    """Cross-platform key combination function."""
     try:
-        if key == '{Enter}':
-            key = 'enter'
-        if 'keyboard' in sys.modules:
-            keyboard.send(key)
-        else:
+        if sys.platform == "win32":
+            if ahk:
+                ahk.send(key)
+            else:
+                if '+' in key:
+                    keys = [k.strip() for k in key.split('+')]
+                    auto.hotkey(*keys)
+                else:
+                    auto.press(key)
+        elif sys.platform == "darwin":
             if '+' in key:
                 keys = [k.strip() for k in key.split('+')]
                 auto.hotkey(*keys)
@@ -665,7 +633,41 @@ def platform_key_combo(key):
 
 azerty_replace_dict = {"w": "z", "a": "q"}
 
+def get_action(file):
+    """Read pathing script from paths folder."""
+    try:
+        base_path = None
+        if getattr(sys, 'frozen', False):
+            base_path = pathlib.Path(sys.executable).parent.resolve()
+        else:
+            base_path = pathlib.Path(__file__).parent.resolve()
+        
+        path_file = base_path / "paths" / f"{file}.py"
+        if path_file.exists():
+            with open(path_file, 'r') as f:
+                return f.read()
+        else:
+            print(f"Path file not found: {path_file}")
+            return ""
+    except Exception as e:
+        print(f"Failed to load path {file}: {e}")
+        return ""
+
+def get_file(file):
+    try:
+        base_path = None
+        if getattr(sys, 'frozen', False):
+          base_path = pathlib.Path(sys.executable).parent.resolve()
+        else:
+            base_path - pathlib.Path(__file__).parent.resolve()
+        
+        path_file = base_path / "paths" / f"{file}"
+    except Exception as e:
+      return
+        
+
 def walk_time_conversion(d):
+    """Convert walk time based on VIP settings."""
     if config_data.get("settings", {}).get("vip+_mode") == "1":
         return d
     elif config_data.get("settings", {}).get("vip_mode") == "1":
@@ -674,9 +676,11 @@ def walk_time_conversion(d):
         return d * 1.3
 
 def walk_sleep(d):
+    """Sleep with time conversion."""
     time.sleep(walk_time_conversion(d))
 
 def walk_send(k, t):
+    """Send key with azerty conversion."""
     if config_data.get("settings", {}).get("azerty_mode") == "1" and k in azerty_replace_dict:
         k = azerty_replace_dict[k]
     if t:
@@ -684,9 +688,7 @@ def walk_send(k, t):
     else:
         keyboard.on_release_key(k, lambda _: None)
 
-# ------------------------------------------------------------
-#  MainLoop (full version from original, with AppleScript window activation)
-# ------------------------------------------------------------
+
 class MainLoop:
     def __init__(self):
         self.config_data = config_data
@@ -701,12 +703,9 @@ class MainLoop:
         self.last_potion_3 = datetime.min
         self.last_ss = datetime.min
         self.last_item_scheduler = datetime.min
-        self._time_started = datetime.min
-        self._time_ended = datetime.min
         self.discord_webhook = self.config_data.get("discord", {}).get("webhook", {}).get("url", "")
 
     def start(self):
-        self._time_started = datetime.now()
         if self.config_data.get("discord", {}).get("webhook", {}).get("enabled") == "1" and self.discord_webhook:
             self._send_discord("Macro Started", f"**- {time.strftime('[%I:%M:%S %p]')}: Macro started.**", 0x64ff5e)
         print("Starting Macro!")
@@ -716,21 +715,19 @@ class MainLoop:
         self._start_biome_detection()
 
     def stop(self):
-        self._time_ended = datetime.now()
-        if self.config_data.get("discord", {}).get("webhook", {}).get("enabled") == "1" and self.discord_webhook:
-            self._send_discord("Macro Stopped", f"**- {time.strftime('[%I:%M:%S %p]')}: Macro stopped.**", 0xff0000)
-            self.send_webhook_summary()
         self.running.clear()
         if self.tracker:
             self.tracker.stop_monitoring()
         if self.thread and self.thread.is_alive():
-            self.thread.join(timeout=2)
+            timeout = 4 if sys.platform == "darwin" else 2
+            self.thread.join(timeout=timeout)
+        if self.config_data.get("discord", {}).get("webhook", {}).get("enabled") == "1" and self.discord_webhook:
+            self._send_discord("Macro Stopped", f"**- {time.strftime('[%I:%M:%S %p]')}: Macro stopped.**", 0xff0000)
 
     def _send_discord(self, title, desc, color):
         try:
             if not self.discord_webhook:
                 return
-            import discord_webhook
             webhook = discord_webhook.DiscordWebhook(url=self.discord_webhook)
             embed = discord_webhook.DiscordEmbed(title=title, description=desc, color=color)
             embed.set_footer(text=f"Elixir Macro | {CURRENT_VERSION}")
@@ -754,12 +751,17 @@ class MainLoop:
             try:
                 if not self.running.is_set():
                     break
+                    
                 if self.config_data.get('settings', {}).get('reset') == "1":
-                    self.activate_window(title="Roblox")
+                    if sys.platform == "win32":
+                        self.activate_window(title="Roblox")
+                        
                 time.sleep(1)
                 self.auto_equip()
                 time.sleep(1)
                 self.align_cam()
+                time.sleep(1)
+                self.item_scheduler()
                 time.sleep(1)
                 self.auto_loop_stuff()
                 time.sleep(1)
@@ -769,6 +771,7 @@ class MainLoop:
                 time.sleep(1)
                 self.item_collecting()
                 time.sleep(1)
+                
             except Exception as e:
                 print(f"Error in main loop: {e}")
                 if not self.running.is_set():
@@ -782,15 +785,19 @@ class MainLoop:
         try:
             c = self.config_data.get('clicks', {})
             click_delay = float(self.config_data.get("settings", {}).get("click_delay", 0.55))
+            
             platform_click(*c.get('aura_storage', [0, 0]))
             time.sleep(0.55 + click_delay)
+            
             if self.config_data.get('auto_equip', {}).get('special_aura') == "0":
                 platform_click(*c.get('regular_tab', [0, 0]))
             else:
                 platform_click(*c.get('special_tab', [0, 0]))
             time.sleep(0.55 + click_delay)
+            
             platform_click(*c.get('search_bar', [0, 0]))
             time.sleep(0.55 + click_delay)
+            
             aura_name = self.config_data.get('auto_equip', {}).get('aura', '')
             if aura_name:
                 platform_key_press(aura_name)
@@ -805,6 +812,7 @@ class MainLoop:
                 time.sleep(0.3 + click_delay)
                 platform_key_combo('{Enter}')
                 platform_click(*c.get('aura_storage', [0, 0]))
+                
         except Exception as e:
             print(f"Auto equip error: {e}")
 
@@ -814,6 +822,7 @@ class MainLoop:
         try:
             c = self.config_data.get('clicks', {})
             click_delay = float(self.config_data.get("settings", {}).get("click_delay", 0.55))
+            
             platform_click(*c.get('collection_menu', [0, 0]))
             time.sleep(1 + click_delay)
             platform_click(*c.get('exit_collection', [0, 0]))
@@ -825,13 +834,21 @@ class MainLoop:
     def _reset(self):
         if self.config_data.get('settings', {}).get('reset') != "1":
             return
+            
         click_delay = float(self.config_data.get("settings", {}).get("click_delay", 0.55))
         try:
-            platform_key_press('esc')
-            time.sleep(0.75 + click_delay)
-            platform_key_press('r')
-            time.sleep(0.75 + click_delay)
-            platform_key_press('enter')
+            if sys.platform == "win32" and ahk:
+                ahk.send_input("{Esc}")
+                time.sleep(0.75 + click_delay)
+                ahk.send_input("R")
+                time.sleep(0.75 + click_delay)
+                ahk.send_input("{Enter}")
+            else:
+                auto.press('esc')
+                time.sleep(0.75 + click_delay)
+                auto.press('r')
+                time.sleep(0.75 + click_delay)
+                auto.press('enter')
         except Exception as e:
             print(f"Reset error: {e}")
 
@@ -864,18 +881,20 @@ class MainLoop:
 
     def item_scheduler(self):
         if self.config_data.get('item_scheduler_item', {}).get('enabled') != "1":
-            return False
+            return
         try:
             c = self.config_data.get('clicks', {})
             click_delay = float(self.config_data.get("settings", {}).get("click_delay", 0.55))
-            scheduler_config = self.config_data.get('item_scheduler_item', {})
+            
             platform_click(*c.get('items_storage', [0, 0]))
             time.sleep(0.55 + click_delay)
             platform_click(*c.get('items_tab', [0, 0]))
             time.sleep(0.33 + click_delay)
             platform_click(*c.get('items_bar', [0, 0]))
             time.sleep(0.33 + click_delay)
-            item_name = scheduler_config.get('item_name', '')
+            
+            item_name = self.config_data.get('item_scheduler_item', {}).get('item_name', '')
+            
             platform_key_press(item_name)
             time.sleep(0.55 + click_delay)
             platform_key_combo('{Enter}')
@@ -886,21 +905,18 @@ class MainLoop:
             time.sleep(0.1 + click_delay)
             platform_click(*c.get('item_value', [0, 0]))
             time.sleep(0.33 + click_delay)
-            quantity = scheduler_config.get('item_scheduler_quantity', '1')
+            
+            quantity = self.config_data.get('item_scheduler_item', {}).get('item_scheduler_quantity', '1')
             platform_key_combo(quantity)
             time.sleep(0.55 + click_delay)
             platform_key_combo('{Enter}')
             time.sleep(0.43 + click_delay)
             platform_click(*c.get('use_button', [0, 0]))
             time.sleep(0.78 + click_delay)
-            platform_click(*c.get('items_bar', [0, 0]))
-            time.sleep(0.33 + click_delay)
-            platform_key_combo('{Enter}')
-            time.sleep(0.55 + click_delay)
             platform_click(*c.get('items_storage', [0, 0]))
+                
         except Exception as e:
             print(f"Item scheduler error: {e}")
-        return True
 
     def claim_quests(self):
         if self.config_data.get('claim_daily_quests') != "1":
@@ -908,6 +924,7 @@ class MainLoop:
         try:
             c = self.config_data.get('clicks', {})
             click_delay = float(self.config_data.get("settings", {}).get("click_delay", 0.55))
+            
             platform_click(*c.get('quest_menu', [0, 0]))
             time.sleep(0.55 + click_delay)
             platform_click(*c.get('first_slot', [0, 0]))
@@ -932,18 +949,23 @@ class MainLoop:
         try:
             c = self.config_data.get('clicks', {})
             click_delay = float(self.config_data.get("settings", {}).get("click_delay", 0.55))
+            
             time.sleep(0.39 + click_delay)
             platform_click(*c.get('aura_storage', [0, 0]))
             time.sleep(0.55 + click_delay)
             platform_click(*c.get('regular_tab', [0, 0]))
             time.sleep(0.55 + click_delay)
-            screen_dir = get_writable_base() / "images"
+            
+            screen_dir = Path("images")
             screen_dir.mkdir(parents=True, exist_ok=True)
+            
             ss = auto.screenshot()
             path = screen_dir / "inventory_screenshots.png"
             ss.save(path)
+            
             if self.discord_webhook and 'discord.com' in self.discord_webhook:
                 self._send_image(path, "Aura Screenshot")
+            
             time.sleep(0.55 + click_delay)
             platform_click(*c.get('aura_storage', [0, 0]))
             time.sleep(0.55 + click_delay)
@@ -951,11 +973,14 @@ class MainLoop:
             time.sleep(0.55 + click_delay)
             platform_click(*c.get('items_tab', [0, 0]))
             time.sleep(0.33 + click_delay)
+            
             ss2 = auto.screenshot()
             path2 = screen_dir / "item_screenshots.png"
             ss2.save(path2)
+            
             if self.discord_webhook:
                 self._send_image(path2, "Item Screenshot")
+            
             platform_click(*c.get('items_storage', [0, 0]))
         except Exception as e:
             print(f"Screenshot error: {e}")
@@ -964,7 +989,6 @@ class MainLoop:
         try:
             if not self.discord_webhook:
                 return
-            import discord_webhook
             webhook = discord_webhook.DiscordWebhook(url=self.discord_webhook)
             with open(image_path, 'rb') as f:
                 webhook.add_file(file=f.read(), filename=image_path.name)
@@ -976,33 +1000,40 @@ class MainLoop:
             print(f"Send image error: {e}")
 
     def auto_loop_stuff(self):
+        """Handle all timed operations."""
         now = datetime.now()
+        
         if self.config_data.get('potion_crafting', {}).get('enabled') == "1":
             try:
                 crafting_interval = int(self.config_data.get('potion_crafting', {}).get('crafting_interval', 30))
                 interval = timedelta(minutes=crafting_interval)
             except (ValueError, TypeError):
                 interval = timedelta(minutes=20)
+                
             if now - self.last_potion >= interval:
                 self.do_crafting()
                 self.last_potion = now
+
         if self.config_data.get('claim_daily_quests') == "1":
             quest_interval = timedelta(minutes=30)
             if now - self.last_quest >= quest_interval:
                 self.claim_quests()
                 self.last_quest = now
+
         if self.config_data.get('invo_ss', {}).get('enabled') == "1":
             try:
                 ss_interval = int(self.config_data.get('invo_ss', {}).get('duration', 60))
                 ss_timedelta = timedelta(minutes=ss_interval)
             except (ValueError, TypeError):
                 ss_timedelta = timedelta(minutes=60)
+            
             if now - self.last_ss >= ss_timedelta:
                 self.inventory_screenshots()
                 self.last_ss = now
+
         if self.config_data.get("item_scheduler_item", {}).get("enabled") == "1":
             try:
-                item_scheduler_interval = int(self.config_data.get("item_scheduler_item", {}).get("interval"))
+                item_scheduler_interval = self.config_data["item_scheduler_item"]["interval"]
                 item_scheduler_time = timedelta(minutes=item_scheduler_interval)
             except (ValueError, TypeError):
                 item_scheduler_time = timedelta(minutes=20)
@@ -1011,12 +1042,13 @@ class MainLoop:
                     f"Invalid item scheduler interval in config. Defaulting to 20 minutes.",
                     0xffff00
                 )
+
             if now - self.last_item_scheduler >= item_scheduler_time:
-                executed = self.item_scheduler()
-                if executed or self.config_data.get("item_scheduler_item", {}).get("enable_only_if_biome") != "1":
-                    self.last_item_scheduler = now
+                self.item_scheduler()
+                self.last_item_scheduler = now
 
     def do_crafting(self):
+        """Execute crafting script."""
         if self.config_data.get('potion_crafting', {}).get('enabled') == "1":
             try:
                 action_code = get_action("potion_path")
@@ -1026,145 +1058,107 @@ class MainLoop:
                 print(f"Crafting error: {e}")
 
     def activate_window(self, title):
-        """Activate Roblox window using AppleScript on macOS."""
-        if sys.platform == "darwin":
-            script = f'''
-            tell application "System Events"
-                set frontmost of first process whose name is "Roblox" to true
-            end tell
-            '''
+        """Activate window by title (Windows only)."""
+        if sys.platform != "win32":
+            return
+        try:
+            import pywinctl as pwc
+            wins = pwc.getWindowsWithTitle(title)
+            if wins:
+                wins[0].activate()
+        except ImportError:
             try:
-                import subprocess
-                subprocess.run(["osascript", "-e", script], check=False)
-            except:
-                pass
-        elif sys.platform == "win32":
-            try:
-                import pywinctl as pwc
-                wins = pwc.getWindowsWithTitle(title)
+                import pygetwindow as gw
+                wins = gw.getWindowsWithTitle(title)
                 if wins:
                     wins[0].activate()
-            except ImportError:
-                try:
-                    import pygetwindow as gw
-                    wins = gw.getWindowsWithTitle(title)
-                    if wins:
-                        wins[0].activate()
-                except:
-                    pass
-            except Exception:
+            except:
                 pass
+        except Exception:
+            pass
 
-    def send_webhook_summary(self):
-        try:
-            if not self.discord_webhook:
-                return
-            import discord_webhook
-            webhook = discord_webhook.DiscordWebhook(url=self.discord_webhook)
-            embed = discord_webhook.DiscordEmbed(
-                title="Macro Summary",
-                description=f"**Macro Started at:** {self._time_started.strftime('%I:%M:%S %p')}\n**Total Biomes Detected:** {sum(self.tracker.biome_counts.values())}\nEnded at: {self._time_ended.strftime('%I:%M:%S %p') if self._time_ended != datetime.min else 'N/A'}",
-                color=0x00ff00
-            )
-            for biome, count in self.tracker.biome_counts.items():
-                embed.add_embed_field(name=biome, value=str(count), inline=True)
-            webhook.add_embed(embed)
-            webhook.execute()
-        except Exception as e:
-            print(f"Webhook summary error: {e}")
 
-# ------------------------------------------------------------
-#  Coordinate Capture (no overlay, works on macOS in compiled .app)
-# ------------------------------------------------------------
 class CoordinateCapture:
     def __init__(self, callback):
         self.callback = callback
+        self.root = None
+        self.canvas = None
+        self.start_x = self.start_y = None
         self.mode = 'click'
-        self.points = []
-        self.listener = None
-        self.cancelled = False
 
     def start_capture(self, mode='click'):
         self.mode = mode
-        self.points = []
-        self.cancelled = False
-        
-        # Set up escape key to cancel
-        keyboard.add_hotkey('esc', self._cancel)
-        
-        if mode == 'click':
-            print("Click anywhere on screen to capture point. Press ESC to cancel.")
-            # Wait for a click using mouse library
-            mouse.wait(button='left')
-            if not self.cancelled:
-                x, y = mouse.get_position()
-                self.callback(x, y)
-        else:  # rect mode
-            print("Click top-left corner, then click bottom-right corner. Press ESC to cancel.")
-            def on_click():
-                if self.cancelled:
-                    return
-                x, y = mouse.get_position()
-                self.points.append((x, y))
-                if len(self.points) == 1:
-                    print("Now click bottom-right corner...")
-                elif len(self.points) == 2:
-                    # Stop listening
-                    if self.listener:
-                        self.listener.stop()
-                    x1, y1 = self.points[0]
-                    x2, y2 = self.points[1]
-                    w = abs(x2 - x1)
-                    h = abs(y2 - y1)
-                    self.callback(min(x1, x2), min(y1, y2), w, h)
-            self.listener = mouse.on_click(on_click)
-            # Wait until we have two points or cancelled
-            while len(self.points) < 2 and not self.cancelled:
-                time.sleep(0.1)
-            if self.cancelled:
-                if self.listener:
-                    self.listener.stop()
-                self.callback(None)
-        
-        # Remove escape hotkey
-        keyboard.remove_hotkey('esc')
+        self.root = tk.Tk()
+        self.root.attributes('-fullscreen', True, '-alpha', 0.3)
+        self.root.config(cursor='cross')
+        self.canvas = tk.Canvas(self.root, bg='lightblue', highlightthickness=0)
+        self.canvas.pack(fill='both', expand=True)
+        self.root.bind('<Button-1>', self.on_click)
+        if mode == 'rect':
+            self.root.bind('<B1-Motion>', self.on_drag)
+            self.root.bind('<ButtonRelease-1>', self.on_release)
+        self.root.protocol("WM_DELETE_WINDOW", self.on_close)
+        self.root.mainloop()
 
-    def _cancel(self):
-        self.cancelled = True
+    def on_click(self, event):
+        if self.mode == 'click':
+            self.callback(event.x, event.y)
+            self.root.destroy()
+        else:
+            self.start_x, self.start_y = event.x, event.y
 
-# ------------------------------------------------------------
-#  Api class (unchanged)
-# ------------------------------------------------------------
+    def on_drag(self, event):
+        self.canvas.delete('rect')
+        self.canvas.create_rectangle(
+            self.start_x, self.start_y, event.x, event.y,
+            outline='white', width=2, tag='rect'
+        )
+
+    def on_release(self, event):
+        w = abs(event.x - self.start_x)
+        h = abs(event.y - self.start_y)
+        self.callback(self.start_x, self.start_y, w, h)
+        self.root.destroy()
+
+    def on_close(self):
+        self.callback(None)
+        self.root.destroy()
+
+
 class Api:
     def __init__(self):
         self.main_loop = MainLoop()
         self.hotkeys_registered = False
+        self.window = None
+
+    def minimize(self):
+        if self.window:
+            self.window.minimize()
+
+    def close_window(self):
+        if self.window:
+            self.window.destroy()
 
     def _ensure_hotkeys(self):
         if not self.hotkeys_registered:
             try:
-                keyboard.add_hotkey(config_data.get("system_buttons", {}).get("start", "F1"), self.start_macro)
-                keyboard.add_hotkey(config_data.get("system_buttons", {}).get("stop", "F2"), self.stop_macro)
-                keyboard.add_hotkey(config_data.get("system_buttons", {}).get("restart", "F3"), self.restart_macro)
+                keyboard.add_hotkey('F1', self.start_macro)
+                keyboard.add_hotkey('F2', self.stop_macro)
+                keyboard.add_hotkey('F3', self.quit_app)
+                keyboard.add_hotkey('F10', self.quit_app)
                 self.hotkeys_registered = True
             except Exception as e:
                 print(f"Hotkey registration error: {e}")
 
     def update_status(self, state, text):
         try:
-            win = webview.active_window()
-            if win is None:
-                return
-            win.evaluate_js(f"window.setStatus('{state}', '{text}')")
+            webview.active_window().evaluate_js(f"window.setStatus('{state}', '{text}')")
         except Exception as e:
             print(f"update_status error: {e}")
 
     def show_toast(self, message, duration=3000):
         try:
-            win = webview.active_window()
-            if win is None:
-                return
-            win.evaluate_js(f"window.showToast('{message}', {duration})")
+            webview.active_window().evaluate_js(f"window.showToast('{message}', {duration})")
         except Exception as e:
             print(f"show_toast error: {e}")
 
@@ -1190,26 +1184,26 @@ class Api:
         self.update_status('idle', 'IDLE')
         return {"status": "stopped"}
 
-    def restart_macro(self):
-        self.stop_macro()
-        threading.Timer(0.5, self._do_restart).start()
-        return {"status": "restarting"}
+    def quit_app(self):
+        """Quit the application cleanly."""
+        self.update_status('idle', 'CLOSING...')
+        threading.Timer(0.3, self._do_quit).start()
+        return {"status": "closing"}
 
-    def _do_restart(self):
-        script_dir = get_writable_base()
-        os.chdir(script_dir)
-        python = sys.executable
-        if getattr(sys, 'frozen', False):
-            args = [python] + sys.argv
-        else:
-            args = [python, __file__] + sys.argv[1:]
-        os.execv(python, args)
+    def _do_quit(self):
+        """Final termination sequence."""
+        try:
+            self.main_loop.stop()
+            if self.window:
+                self.window.destroy()
+            os._exit(0)
+        except Exception:
+            os._exit(1)
 
     def test_webhook(self):
         url = config_data.get("discord", {}).get("webhook", {}).get("url", "")
         if url and 'discord.com' in url:
             try:
-                import discord_webhook
                 webhook = discord_webhook.DiscordWebhook(url=url)
                 embed = discord_webhook.DiscordEmbed(
                     title="Webhook Test",
@@ -1226,9 +1220,11 @@ class Api:
     def capture_coordinate(self, mode='click'):
         result = [None]
         event = threading.Event()
+
         def callback(*coords):
             result[0] = coords
             event.set()
+
         capture = CoordinateCapture(callback)
         threading.Thread(target=capture.start_capture, args=(mode,), daemon=True).start()
         event.wait(timeout=60)
@@ -1299,8 +1295,27 @@ HTML = """
 /* All CSS from the original - unchanged */
 :root{--gold:#FFD700;--gold-light:#FFE566;--gold-dim:#B8960C;--gold-dark:#7A6000;--black:#000;--black-soft:#0A0A0A;--black-mid:#111;--black-panel:#161616;--black-border:#1E1E1E;--white:#fff;--white-dim:#CCC;--white-faint:#555;--glow:rgba(255,215,0,.35);--green:#00ff88;--red:#ff4444;--blue:#88bbff;}*{margin:0;padding:0;box-sizing:border-box;}body{background:#000;font-family:'Rajdhani',sans-serif;color:var(--white);overflow:hidden;user-select:none;width:100vw;height:100vh;}#ls{position:fixed;inset:0;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;overflow:hidden;}.ls-bg{position:absolute;inset:0;background:radial-gradient(ellipse at center,#0a0800,#000 70%);}.ls-stars,.ls-ptcl{position:absolute;inset:0;pointer-events:none;}.star{position:absolute;background:var(--gold);border-radius:50%;animation:twinkle var(--d,3s) ease-in-out infinite var(--dl,0s);opacity:0;}@keyframes twinkle{0%,100%{opacity:0;transform:scale(.5)}50%{opacity:var(--op,.8);transform:scale(1)}}.ls-orb{position:absolute;width:600px;height:600px;border-radius:50%;background:radial-gradient(circle,rgba(255,215,0,.05),transparent 70%);animation:orbP 4s ease-in-out infinite;}@keyframes orbP{0%,100%{transform:scale(.9);opacity:.5}50%{transform:scale(1.1);opacity:1}}.ptcl{position:absolute;width:3px;height:3px;background:var(--gold);border-radius:50%;animation:floatUp var(--d) ease-in infinite var(--dl);opacity:0;box-shadow:0 0 6px var(--gold);}@keyframes floatUp{0%{opacity:0;transform:translateY(0) scale(0)}10%{opacity:1}90%{opacity:.3}100%{opacity:0;transform:translateY(-200px) scale(.5)}}.ls-rings{position:relative;width:200px;height:200px;margin-bottom:40px;}.ring{position:absolute;border-radius:50%;border:2px solid transparent;animation:ringR linear infinite;}.ring:nth-child(1){inset:0;border-top-color:var(--gold);border-right-color:var(--gold-dim);animation-duration:3s;box-shadow:0 0 20px var(--glow),inset 0 0 20px var(--glow);}.ring:nth-child(2){inset:20px;border-bottom-color:var(--gold-light);border-left-color:var(--gold);animation-duration:2s;animation-direction:reverse;}.ring:nth-child(3){inset:40px;border-top-color:var(--gold-dim);border-right-color:var(--gold-light);animation-duration:4s;}.ring-c{position:absolute;inset:60px;border-radius:50%;background:radial-gradient(circle,rgba(255,215,0,.3),rgba(255,215,0,.05));animation:cGlow 2s ease-in-out infinite;display:flex;align-items:center;justify-content:center;}.ring-c::after{content:'⬡';font-size:32px;color:var(--gold);animation:cGlow 2s ease-in-out infinite reverse;text-shadow:0 0 20px var(--gold);}@keyframes ringR{from{transform:rotate(0)}to{transform:rotate(360deg)}}@keyframes cGlow{0%,100%{opacity:.6}50%{opacity:1}}.ls-title{font-family:'Cinzel Decorative',serif;font-size:42px;font-weight:900;color:transparent;background:linear-gradient(180deg,var(--gold-light),var(--gold) 50%,var(--gold-dim));-webkit-background-clip:text;background-clip:text;filter:drop-shadow(0 0 30px rgba(255,215,0,.6));letter-spacing:8px;animation:reveal 1.5s ease-out .3s both;}.ls-sub{font-family:'Cinzel',serif;font-size:14px;letter-spacing:6px;color:var(--gold-dim);margin-top:8px;animation:reveal 1.5s ease-out .6s both;}@keyframes reveal{from{opacity:0;transform:translateY(30px)}to{opacity:1;transform:translateY(0)}}.ls-bar-wrap{width:400px;margin-top:50px;animation:reveal 1s ease-out 1s both;}.ls-bar-lbl{font-size:11px;letter-spacing:4px;color:var(--white-faint);text-transform:uppercase;text-align:center;margin-bottom:10px;}.ls-bar-track{width:100%;height:3px;background:rgba(255,215,0,.1);border-radius:2px;position:relative;}.ls-bar-track::before{content:'';position:absolute;inset:-1px;border-radius:3px;border:1px solid rgba(255,215,0,.15);}.ls-bar-fill{height:100%;background:linear-gradient(90deg,var(--gold-dim),var(--gold-light));border-radius:2px;width:0%;transition:width .1s linear;position:relative;box-shadow:0 0 15px var(--gold),0 0 30px rgba(255,215,0,.3);}.ls-bar-fill::after{content:'';position:absolute;right:-2px;top:-3px;width:4px;height:9px;background:#fff;border-radius:2px;box-shadow:0 0 10px #fff,0 0 20px var(--gold);}.ls-pct{font-family:'Cinzel',serif;font-size:12px;color:var(--gold);text-align:center;margin-top:10px;letter-spacing:2px;}.ls-tip{font-size:11px;color:var(--white-faint);letter-spacing:2px;margin-top:16px;text-align:center;font-style:italic;min-height:16px;transition:opacity .2s;}#app{display:none;width:100vw;height:100vh;background:var(--black);flex-direction:column;position:relative;overflow:hidden;}.app-bg{position:absolute;inset:0;background:radial-gradient(ellipse at 10% 10%,rgba(255,215,0,.03),transparent 50%),radial-gradient(ellipse at 90% 90%,rgba(255,215,0,.02),transparent 50%);pointer-events:none;}.app-grid{position:absolute;inset:0;background-image:linear-gradient(rgba(255,215,0,.015) 1px,transparent 1px),linear-gradient(90deg,rgba(255,215,0,.015) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;}@keyframes appIn{from{opacity:0;transform:scale(.97)}to{opacity:1;transform:scale(1)}}.app-in{animation:appIn .8s cubic-bezier(.16,1,.3,1) forwards;}.tbar{display:flex;align-items:center;justify-content:space-between;height:44px;background:var(--black-mid);border-bottom:1px solid rgba(255,215,0,.12);padding:0 16px;position:relative;z-index:10;flex-shrink:0;}.tbar::after{content:'';position:absolute;bottom:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--gold),transparent);}.tbar-logo{display:flex;align-items:center;gap:10px;}.tbar-icon{width:26px;height:26px;background:linear-gradient(135deg,var(--gold),var(--gold-dim));border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:14px;box-shadow:0 0 10px var(--glow);}.tbar-name{font-family:'Cinzel',serif;font-size:13px;font-weight:700;color:var(--gold);letter-spacing:3px;text-shadow:0 0 10px var(--glow);}.tbar-ver{font-size:10px;color:var(--white-faint);letter-spacing:2px;margin-left:4px;}.tbar-status{display:flex;align-items:center;gap:8px;font-size:11px;letter-spacing:2px;color:var(--white-faint);text-transform:uppercase;}.sdot{width:8px;height:8px;border-radius:50%;background:#333;transition:all .3s;}.sdot.running{background:var(--green);box-shadow:0 0 8px var(--green);animation:pulse 1s infinite;}.sdot.stopped{background:var(--red);box-shadow:0 0 8px var(--red);}.sdot.idle{background:var(--gold-dim);box-shadow:0 0 8px var(--glow);}@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}.content{flex:1;overflow:hidden;position:relative;}.panel-page{display:none;height:100%;padding:14px;overflow-y:auto;gap:10px;flex-wrap:wrap;align-content:flex-start;}.panel-page.active{display:flex;}.panel-page::-webkit-scrollbar{width:3px;}.panel-page::-webkit-scrollbar-thumb{background:var(--gold-dim);border-radius:2px;}.card{background:var(--black-panel);border:1px solid var(--black-border);border-radius:6px;padding:12px 14px;position:relative;overflow:hidden;transition:border-color .2s;animation:fadeUp .3s ease-out;}.card:hover{border-color:rgba(255,215,0,.18);}.card::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(255,215,0,.25),transparent);opacity:0;transition:opacity .2s;}.card:hover::before{opacity:1;}@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}.card-head{font-family:'Cinzel',serif;font-size:11px;font-weight:700;letter-spacing:3px;color:var(--gold);text-transform:uppercase;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid rgba(255,215,0,.1);display:flex;align-items:center;gap:7px;text-shadow:0 0 8px var(--glow);}.divider{width:100%;display:flex;align-items:center;gap:10px;margin:8px 0;}.divider span{font-size:9px;letter-spacing:3px;text-transform:uppercase;color:var(--white-faint);}.divider::before,.divider::after{content:'';flex:1;height:1px;background:rgba(255,215,0,.08);}.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%;}.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;width:100%;}.w100{width:100%;}.chk{display:flex;align-items:center;gap:8px;cursor:pointer;padding:3px 0;}.chk input[type=checkbox]{display:none;}.chk-box{width:15px;height:15px;border:1px solid var(--black-border);border-radius:3px;background:var(--black-mid);display:flex;align-items:center;justify-content:center;transition:all .15s;flex-shrink:0;position:relative;}.chk-box::after{content:'✓';font-size:9px;color:var(--gold);opacity:0;transition:opacity .15s;font-weight:900;}.chk input:checked+.chk-box{background:rgba(255,215,0,.1);border-color:var(--gold-dim);box-shadow:0 0 8px rgba(255,215,0,.2);}.chk input:checked+.chk-box::after{opacity:1;}.chk:hover .chk-box{border-color:var(--gold-dim);}.chk-lbl{font-size:12px;letter-spacing:.5px;color:var(--white-dim);transition:color .15s;}.chk:hover .chk-lbl,.chk input:checked~.chk-lbl{color:var(--white);}.chk.off .chk-lbl{color:var(--white-faint)!important;opacity:.4;}.chk.off{cursor:not-allowed;}.chk-note{font-size:10px;color:var(--gold-dim);margin-left:2px;}.ifield{background:var(--black-mid);border:1px solid var(--black-border);color:var(--white);font-family:'Rajdhani',sans-serif;font-size:12px;letter-spacing:1px;padding:5px 9px;border-radius:4px;outline:none;transition:border-color .2s,box-shadow .2s;width:100%;}.ifield:focus{border-color:var(--gold-dim);box-shadow:0 0 8px rgba(255,215,0,.12);}.ifield::placeholder{color:var(--white-faint);}.ifield.sm{width:64px;}.ifield.md{width:150px;}.ilbl{font-size:10px;letter-spacing:1.5px;color:var(--white-faint);text-transform:uppercase;margin-bottom:4px;}.igroup{display:flex;flex-direction:column;gap:3px;margin-bottom:8px;}.igroup:last-child{margin-bottom:0;}.irow{display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap;}.irow:last-child{margin-bottom:0;}.btn{font-family:'Rajdhani',sans-serif;font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;padding:6px 14px;border:1px solid var(--gold-dim);background:transparent;color:var(--gold);cursor:pointer;border-radius:4px;transition:all .2s;position:relative;overflow:hidden;white-space:nowrap;}.btn::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,var(--gold),var(--gold-dim));opacity:0;transition:opacity .2s;}.btn:hover{color:var(--black);border-color:var(--gold);}.btn:hover::before{opacity:1;}.btn span{position:relative;z-index:1;}.btn.sm{padding:4px 10px;font-size:9px;}.badge{display:inline-block;background:rgba(255,215,0,.08);border:1px solid rgba(255,215,0,.25);color:var(--gold);font-size:8px;letter-spacing:2px;padding:1px 5px;border-radius:2px;text-transform:uppercase;}.badge.off{background:rgba(80,80,80,.1);border-color:rgba(80,80,80,.3);color:var(--white-faint);}.abar{display:flex;justify-content:center;align-items:center;gap:8px;padding:8px 16px;background:var(--black-mid);border-top:1px solid rgba(255,215,0,.08);flex-shrink:0;position:relative;}.abar::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(255,215,0,.25),transparent);}.abtn{font-family:'Cinzel',serif;font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;padding:7px 22px;border:1px solid;cursor:pointer;border-radius:4px;transition:all .2s;position:relative;overflow:hidden;min-width:120px;}.abtn::after{content:'';position:absolute;top:0;left:-100%;width:60px;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.08),transparent);transform:skewX(-20deg);}.abtn:hover::after{left:150%;transition:left .5s ease;}.abtn-start{border-color:var(--gold-dim);background:rgba(255,215,0,.04);color:var(--gold);}.abtn-start:hover,.abtn-start.on{background:rgba(255,215,0,.12);box-shadow:0 0 18px rgba(255,215,0,.2);border-color:var(--gold);}.abtn-stop{border-color:rgba(255,68,68,.35);background:rgba(255,68,68,.04);color:#ff7777;}.abtn-stop:hover{background:rgba(255,68,68,.12);box-shadow:0 0 18px rgba(255,68,68,.15);border-color:var(--red);}.abtn-restart{border-color:rgba(100,180,255,.3);background:rgba(100,180,255,.04);color:var(--blue);}.abtn-restart:hover{background:rgba(100,180,255,.12);box-shadow:0 0 18px rgba(100,180,255,.12);}.kh{font-size:9px;opacity:.45;margin-left:3px;}.tabbar{display:flex;background:var(--black-mid);border-top:1px solid rgba(255,215,0,.1);padding:7px 8px;gap:5px;flex-shrink:0;position:relative;z-index:9;justify-content:center;}.tabbar::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(255,215,0,.3),transparent);}.tbtn{font-family:'Rajdhani',sans-serif;font-size:8px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--white-faint);background:rgba(255,255,255,.02);border:1px solid var(--black-border);padding:6px 10px 7px;cursor:pointer;border-radius:50px;display:flex;flex-direction:column;align-items:center;gap:2px;min-width:56px;transition:all .2s cubic-bezier(.34,1.56,.64,1);position:relative;}.tbtn .te{font-size:17px;line-height:1;transition:transform .2s cubic-bezier(.34,1.56,.64,1),filter .2s;filter:grayscale(.6) brightness(.65);}.tbtn:hover{color:var(--white-dim);border-color:rgba(255,215,0,.2);background:rgba(255,215,0,.05);transform:translateY(-2px);}.tbtn:hover .te{transform:scale(1.15);filter:grayscale(0) brightness(1);}.tbtn.active{color:var(--gold);border-color:var(--gold-dim);background:rgba(255,215,0,.09);box-shadow:0 0 14px rgba(255,215,0,.18),inset 0 0 10px rgba(255,215,0,.04);text-shadow:0 0 8px var(--glow);transform:translateY(-3px);}.tbtn.active .te{filter:grayscale(0) brightness(1.1) drop-shadow(0 0 4px rgba(255,215,0,.55));transform:scale(1.1);}.tbtn.active::before{content:'';position:absolute;bottom:0;left:22%;right:22%;height:2px;background:var(--gold);border-radius:2px 2px 0 0;box-shadow:0 0 6px var(--gold);}.toast{position:fixed;top:52px;left:50%;transform:translateX(-50%) translateY(-14px);background:var(--black-panel);border:1px solid var(--gold-dim);color:var(--gold);font-family:'Rajdhani',sans-serif;font-size:12px;letter-spacing:2px;padding:7px 20px;border-radius:50px;opacity:0;transition:all .3s cubic-bezier(.34,1.56,.64,1);pointer-events:none;z-index:2000;white-space:nowrap;box-shadow:0 4px 24px var(--glow);}.toast.on{opacity:1;transform:translateX(-50%) translateY(0);}.modal-wrap{display:none;position:fixed;inset:0;z-index:1500;align-items:center;justify-content:center;}.modal-wrap.on{display:flex;}.modal-bg{position:absolute;inset:0;background:rgba(0,0,0,.75);backdrop-filter:blur(3px);}.modal{position:relative;background:var(--black-panel);border:1px solid rgba(255,215,0,.2);border-radius:8px;padding:20px;min-width:320px;max-width:580px;max-height:82vh;overflow-y:auto;box-shadow:0 0 60px rgba(0,0,0,.8),0 0 30px rgba(255,215,0,.08);animation:mIn .25s cubic-bezier(.16,1,.3,1);}@keyframes mIn{from{opacity:0;transform:scale(.93) translateY(10px)}to{opacity:1;transform:none}}.modal::-webkit-scrollbar{width:3px;}.modal::-webkit-scrollbar-thumb{background:var(--gold-dim);border-radius:2px;}.modal-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;padding-bottom:10px;border-bottom:1px solid rgba(255,215,0,.1);}.modal-title{font-family:'Cinzel',serif;font-size:13px;letter-spacing:3px;color:var(--gold);text-shadow:0 0 8px var(--glow);}.modal-close{background:none;border:none;color:var(--white-faint);font-size:18px;cursor:pointer;padding:0 4px;line-height:1;transition:color .2s;}.modal-close:hover{color:var(--red);}.modal-footer{display:flex;justify-content:flex-end;gap:8px;margin-top:16px;padding-top:10px;border-top:1px solid rgba(255,215,0,.08);}.cr{display:grid;gap:5px;align-items:center;margin-bottom:6px;}.cr.xy{grid-template-columns:1fr 56px 56px auto;}.cr.xywh{grid-template-columns:1fr 48px 48px 48px 48px auto;}.cr-lbl{font-size:11px;color:var(--white-dim);letter-spacing:.3px;}.mini-tabs{display:flex;gap:4px;margin-bottom:12px;border-bottom:1px solid rgba(255,215,0,.08);padding-bottom:8px;flex-wrap:wrap;}.mt-btn{font-family:'Rajdhani',sans-serif;font-size:9px;letter-spacing:2px;text-transform:uppercase;background:none;border:1px solid transparent;color:var(--white-faint);padding:4px 11px;border-radius:4px;cursor:pointer;transition:all .15s;}.mt-btn.active{color:var(--gold);border-color:var(--gold-dim);background:rgba(255,215,0,.08);}.mt-page{display:none;}.mt-page.active{display:block;}.item-row{display:grid;grid-template-columns:1fr 64px;align-items:center;gap:6px;margin-bottom:6px;}.item-row .chk{flex:1;}.biome-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;}.pot-row{display:grid;grid-template-columns:26px 1fr auto;gap:8px;align-items:center;margin-bottom:8px;}.pot-num{font-family:'Cinzel',serif;font-size:10px;color:var(--gold-dim);letter-spacing:1px;}.credits-wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:16px;padding:14px;}.cr-logo{font-family:'Cinzel Decorative',serif;font-size:26px;font-weight:900;color:transparent;background:linear-gradient(180deg,var(--gold-light),var(--gold));-webkit-background-clip:text;background-clip:text;filter:drop-shadow(0 0 18px rgba(255,215,0,.5));letter-spacing:5px;}.cr-role{font-family:'Cinzel',serif;font-size:9px;letter-spacing:4px;color:var(--gold-dim);text-transform:uppercase;margin-bottom:3px;}.cr-name{font-size:13px;color:var(--white-dim);letter-spacing:.5px;}.cr-note{font-size:11px;color:var(--white-faint);line-height:1.9;text-align:center;max-width:360px;}.cr-link{font-family:'Cinzel',serif;font-size:11px;letter-spacing:3px;color:var(--gold);text-decoration:none;border-bottom:1px solid var(--gold-dim);padding-bottom:2px;cursor:pointer;transition:all .2s;}.cr-link:hover{color:var(--gold-light);text-shadow:0 0 10px var(--glow);}.orn{display:flex;align-items:center;gap:10px;color:var(--gold-dim);font-size:11px;}.orn::before,.orn::after{content:'';width:50px;height:1px;}.orn::before{background:linear-gradient(90deg,transparent,var(--gold-dim));}.orn::after{background:linear-gradient(90deg,var(--gold-dim),transparent);}
 </style>
+<style>
+/* macOS Window Controls */
+.tbar-controls{position:absolute;left:12px;top:12px;display:flex;gap:10px;z-index:100;}.win-btn{width:16px;height:16px;border-radius:50%;border:none;cursor:pointer;transition:all 0.15s;font-size:0;line-height:16px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,0.3);}.win-btn.minimize{background:#FFBD2E;box-shadow:0 0 8px rgba(255,189,46,0.5);}.win-btn:hover{transform:scale(1.15);}
+.tbar{height:68px !important;-webkit-app-region:drag;backdrop-filter:blur(10px);background:rgba(20,20,20,0.85) !important;}
+.tbar-logo,.tbar-status{-webkit-app-region:no-drag;}
+/* Scale up UI */
+html,body{font-size:15px !important;}.card{padding:16px !important;border-radius:12px !important;}.card-head{font-size:16px !important;padding-bottom:12px !important;}.ifield{padding:10px 12px !important;font-size:14px !important;border-radius:8px !important;}.btn{padding:12px 20px !important;font-size:14px !important;border-radius:8px !important;}.chk{padding:6px 0 !important;font-size:14px !important;}
+/* Title bar layout */
+.tbar-logo{margin-top:30px !important;}.tbar-status{margin-top:30px !important;}
+/* Invisible drag bar for frameless window */
+.drag-bar{-webkit-app-region:drag;height:35px;width:100%;position:absolute;top:0;left:0;z-index:9999;background:transparent;}
+.win-btn,.btn,.tbtn{-webkit-app-region:no-drag;}
+/* Content padding for drag bar */
+#app{padding-top:35px;border-radius:12px;overflow:hidden;}
+/* Force hide native macOS buttons area */
+html,body{background:#000 !important;}body::before{content:"";position:fixed;top:0;left:0;width:80px;height:30px;background:#000;z-index:99999;pointer-events:none;}
+.tbar-controls{z-index:100000 !important;}
+</style>
 </head>
 <body>
+<div class="drag-bar"></div>
 
 <!-- ═══ LOADING SCREEN ═══ -->
 <div id="ls">
@@ -1328,11 +1343,14 @@ HTML = """
 
   <!-- Titlebar -->
   <div class="tbar">
+    <div class="tbar-controls">
+      <button class="win-btn minimize" onclick="pywebview.api.minimize()" title="Minimize">●</button>
+    </div>
     <div class="tbar-logo">
       <div class="tbar-icon">
         <span>⬡</span>
       </div>
-    <div class="tbar-name">ELIXIR <span class="tbar-ver">v1.1.3</span></div>
+    <div class="tbar-name">ELIXIR <span class="tbar-ver">v1.1.2</span></div>
     </div>
     <div class="tbar-status">
       <div class="sdot idle" id="sdot"></div>
@@ -1386,7 +1404,7 @@ HTML = """
         </div>
         <div class="divider" style="margin-top:4px;"><span>Screenshots</span></div>
         <div class="irow">
-          <label class="chk"><input type="checkbox" id="invo_ss__enabled"><span class="chk-box"></span><span class="chk-lbl">Inventory and Aura Screenshots</span></label>
+          <label class="chk"><input type="checkbox" id="invo_ss__enabled"><span class="chk-box"></span><span class="chk-lbl">Inventory Screenshots</span></label>
           <span style="font-size:10px;color:var(--white-faint);letter-spacing:1px;">Duration (min):</span>
           <input class="ifield sm" id="invo_ss__duration" placeholder="60">
         </div>
@@ -1398,7 +1416,7 @@ HTML = """
       <div class="card w100">
         <div class="card-head">⚗ Potion Crafting</div>
         <div class="irow" style="margin-bottom:12px;">
-          <label class="chk"><input type="checkbox" id="potion_crafting__enabled"><span class="chk-box"></span><span class="chk-lbl">Enable Crafting</span></label>
+          <label class="chk"><input type="checkbox" id="potion_crafting__enabled"><span class="chk-box"></span><span class="chk-lbl">Enable Potion Crafting</span></label>
           <label class="chk"><input type="checkbox" id="potion_crafting__temporary_auto_add"><span class="chk-box"></span><span class="chk-lbl">Auto Add Switcher</span></label>
           <label class="chk"><input type="checkbox" id="potion_crafting__potion_crafting"><span class="chk-box"></span><span class="chk-lbl">Potion Crafting Mode</span></label>
           <button class="btn sm" onclick="openModal('modal-crafting-clicks')"><span>Assign Crafting</span></button>
@@ -1407,7 +1425,7 @@ HTML = """
         <div style="margin:10px 0;">
           <div class="pot-row"><span class="pot-num">01</span><input class="ifield md" id="potion_crafting__item_1" placeholder="e.g. Fortune"><label class="chk"><input type="checkbox" id="potion_crafting__craft_potion_1"><span class="chk-box"></span><span class="chk-lbl">Craft Potion 1</span></label></div>
           <div class="pot-row"><span class="pot-num">02</span><input class="ifield md" id="potion_crafting__item_2" placeholder="e.g. Lucky Potion"><label class="chk"><input type="checkbox" id="potion_crafting__craft_potion_2"><span class="chk-box"></span><span class="chk-lbl">Craft Potion 2</span></label></div>
-          <div class="pot-row"><span class="pot-num">03</span><input class="ifield md" id="potion_crafting__item_3" placeholder="e.g. Gear Basing"><label class="chk"><input type="checkbox" id="potion_crafting__craft_potion_3"><span class="chk-box"></span><span class="chk-lbl">Craft Potion 3</span></label></div>
+          <div class="pot-row"><span class="pot-num">03</span><input class="ifield md" id="potion_crafting__item_3" placeholder="e.g. Heavenly"><label class="chk"><input type="checkbox" id="potion_crafting__craft_potion_3"><span class="chk-box"></span><span class="chk-lbl">Craft Potion 3</span></label></div>
         </div>
         <div class="divider"><span>Timing</span></div>
         <div class="g2" style="margin-top:8px;">
@@ -1497,7 +1515,7 @@ HTML = """
       <div class="g2">
         <div class="card">
           <div class="card-head">🗓 Item Scheduler</div>
-          <label class="chk" style="margin-bottom:10px;"><input type="checkbox" id="item_scheduler_item__enabled"><span class="chk-box"></span><span class="chk-lbl">Enable Item Scheduler</span></label>
+          <label class="chk off" style="margin-bottom:10px;"><input type="checkbox" id="item_scheduler_item__enabled"><span class="chk-box"></span><span class="chk-lbl">Enable Item Scheduler</span></label>
           <div class="igroup"><div class="ilbl">Item Name</div><input class="ifield" id="item_scheduler_item__name" placeholder="e.g. Fortune I"></div>
           <div class="g2">
             <div class="igroup"><div class="ilbl">Quantity</div><input class="ifield sm" id="item_scheduler_item__quantity" placeholder="1"></div>
@@ -1523,7 +1541,7 @@ HTML = """
         <div class="cr-logo">ELIXIR</div>
         <div class="orn">⬡</div>
         <div style="text-align:center;"><div class="cr-role">Owners</div><div class="cr-name">Golden <span style="color:var(--white-faint);font-size:11px;">(spacedev0572)</span></div></div>
-        <div style="text-align:center;"><div class="cr-role">Developers</div><div class="cr-name">Golden <span style="color:var(--white-faint);font-size:11px;">(spacedev0572)</span></div><div class="cr-name" style="margin-top:3px;">Chaseee <span style="color:var(--white-faint);font-size:11px;">(chaseeee111)</span></div></div>
+        <div style="text-align:center;"><div class="cr-role">Developers</div><div class="cr-name">Golden <span style="color:var(--white-faint);font-size:11px;">(spacedev0572)</span></div><div class="cr-name" style="margin-top:3px;">Chaseee <span style="color:var(--white-faint);font-size:11px;">(chaseeee111)</span></div><div class="cr-name" style="margin-top:3px;">WEHNIT STUDIOS</div></div>
         <div style="text-align:center;"><div class="cr-role">In Contribution</div><div class="cr-note">Inspired by <span style="color:var(--white-dim);">Dolphsol Macro</span>, the first Sol's RNG Macro.<br><span style="color:var(--white-dim);">Radiance Macro</span> — pathing system (LPS)<br><span style="color:var(--white-dim);">OysterDetecter</span> by vexthecoder — log/data reading detection</div></div>
         <div class="orn">⬡</div>
         <a class="cr-link" onclick="window.open('https://discord.gg/JsMM299RF7','_blank')">Join the Server ↗</a>
@@ -1536,7 +1554,7 @@ HTML = """
   <div class="abar">
     <button class="abtn abtn-start" id="btn-start" onclick="startMacro()">START <span class="kh">F1</span></button>
     <button class="abtn abtn-stop" onclick="stopMacro()">STOP <span class="kh">F2</span></button>
-    <button class="abtn abtn-restart" onclick="restartMacro()">RESTART <span class="kh">F3</span></button>
+    <button class="abtn abtn-restart" onclick="quitApp()">QUIT APP <span class="kh">F3</span></button>
   </div>
 
   <!-- Tab Bar (bottom) -->
@@ -1559,12 +1577,12 @@ HTML = """
         </span>
     Settings
     </button>
-    <!-- button class="tbtn" data-tab="merchant">
+    <button class="tbtn" data-tab="merchant">
         <span class="te">
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-store-icon lucide-store"><path d="M15 21v-5a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v5"/><path d="M17.774 10.31a1.12 1.12 0 0 0-1.549 0 2.5 2.5 0 0 1-3.451 0 1.12 1.12 0 0 0-1.548 0 2.5 2.5 0 0 1-3.452 0 1.12 1.12 0 0 0-1.549 0 2.5 2.5 0 0 1-3.77-3.248l2.889-4.184A2 2 0 0 1 7 2h10a2 2 0 0 1 1.653.873l2.895 4.192a2.5 2.5 0 0 1-3.774 3.244"/><path d="M4 10.95V19a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8.05"/></svg>
         </span>
     Merchant
-    </button> -->
+    </button>
     <!-- <button class="tbtn" data-tab="fishing"><span class="te">
         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-fishing-rod-icon lucide-fishing-rod"><path d="M4 11h1"/><path d="M8 15a2 2 0 0 1-4 0V3a1 1 0 0 1 1-1h.5C14 2 20 9 20 18v4"/><circle cx="18" cy="18" r="2"/></svg>
     </span>Fishing</button> -->
@@ -1928,9 +1946,9 @@ window.stopMacro = async () => {
   }
 };
 
-window.restartMacro = () => {
+window.quitApp = () => {
   if (pywebview && pywebview.api) {
-    pywebview.api.restart_macro();
+    pywebview.api.quit_app();
   }
 };
 
@@ -2413,7 +2431,7 @@ function populateBiomeModal(alerts) {
   if (!container) return;
   
   container.innerHTML = '';
-  const biomes = ["NORMAL", "WINDY", "RAINY", "SNOWY", "EGGLAND", "SAND STORM", "HELL", "STARFALL", "HEAVEN", "CORRUPTION", "NULL", "GLITCHED", "DREAMSPACE", "CYBERSPACE", "THE CITADEL OF ORDERS"];
+  const biomes = ["NORMAL", "WINDY", "RAINY", "SNOWY", "SAND STORM", "HELL", "STARFALL", "HEAVEN", "CORRUPTION", "NULL", "GLITCHED", "DREAMSPACE", "CYBERSPACE", "THE CITADEL OF ORDERS"];
   biomes.forEach(biome => {
     const label = document.createElement('label');
     label.className = 'chk';
@@ -2515,6 +2533,7 @@ window.addEventListener('load', () => {
 </script>
 </body>
 """
+
 if __name__ == '__main__':
     set_path()
     api = Api()
@@ -2522,9 +2541,12 @@ if __name__ == '__main__':
         title=f"Elixir Macro v{get_current_version()}",
         html=HTML,
         js_api=api,
-        width=700,
-        height=440,
+        width=900,
+        height=650,
         resizable=False,
-        easy_drag=False
+        frameless=True,
+        easy_drag=True,
+        text_select=False
     )
+    api.window = window
     webview.start(icon="icon.ico" if os.path.exists("icon.ico") else None)
