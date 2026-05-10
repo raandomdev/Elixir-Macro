@@ -14,6 +14,11 @@ import logging
 from pathlib import Path
 
 try:
+    from webview.window import FixPoint
+except Exception:
+    FixPoint = None
+
+try:
     import discord_webhook
     import keyboard
     import pyautogui as auto
@@ -35,7 +40,10 @@ if sys.platform == "win32":
 sys.dont_write_bytecode = True
 
 CONFIG_FILE = "config.json"
-CURRENT_VERSION = "1.1.4"
+CURRENT_VERSION = "1.1.2"
+DOCK_WIDTH = 900
+DOCK_HEIGHT = 160
+EXPANDED_HEIGHT = 650
 
 def get_current_version():
     return CURRENT_VERSION
@@ -1139,6 +1147,26 @@ class Api:
         if self.window:
             self.window.destroy()
 
+    def set_dock_expanded(self, expanded):
+        """Resize the strip UI while keeping the top edge anchored."""
+        if not self.window:
+            return {"status": "no_window"}
+
+        height = EXPANDED_HEIGHT if expanded else DOCK_HEIGHT
+        try:
+            if FixPoint is not None:
+                self.window.resize(DOCK_WIDTH, height, FixPoint.NORTH)
+            else:
+                self.window.resize(DOCK_WIDTH, height)
+            try:
+                self.window.on_top = True
+            except Exception:
+                pass
+            return {"status": "ok", "height": height}
+        except Exception as e:
+            print(f"Dock resize error: {e}")
+            return {"status": "error", "message": str(e)}
+
     def _ensure_hotkeys(self):
         if not self.hotkeys_registered:
             try:
@@ -1312,6 +1340,24 @@ html,body{font-size:15px !important;}.card{padding:16px !important;border-radius
 /* Force hide native macOS buttons area */
 html,body{background:#000 !important;}body::before{content:"";position:fixed;top:0;left:0;width:80px;height:30px;background:#000;z-index:99999;pointer-events:none;}
 .tbar-controls{z-index:100000 !important;}
+/* Compact strip layout */
+#app{padding-top:0 !important;border-radius:12px;overflow:hidden;background:rgba(6,6,6,.96) !important;}
+.drag-bar{height:100% !important;pointer-events:none;}
+.tbar{display:none !important;}
+body::before{display:none !important;}
+.content{flex:0 0 0;max-height:0;min-height:0;opacity:0;overflow:hidden;border-top:0;border-bottom:0;transition:max-height .28s cubic-bezier(.16,1,.3,1),opacity .18s ease;}
+body.dock-expanded .content{flex:1 1 auto;max-height:490px;opacity:1;border-top:1px solid rgba(255,215,0,.12);}
+.panel-page{height:100%;padding:16px 18px 18px;background:rgba(0,0,0,.35);}
+.card{background:rgba(22,22,22,.92) !important;border-color:rgba(255,215,0,.16) !important;}
+.abar,.tabbar{-webkit-app-region:drag;background:rgba(16,16,16,.94) !important;}
+.abtn,.btn,.tbtn,.ifield,.chk,.modal,.modal-wrap{-webkit-app-region:no-drag;}
+.abar{min-height:70px;padding:18px 16px 16px !important;border-top:0 !important;border-bottom:1px solid rgba(255,215,0,.12);}
+.tabbar{min-height:90px;padding:10px 8px 12px !important;border-top:0 !important;}
+.abtn{min-width:145px;padding:12px 28px !important;font-size:13px !important;border-radius:6px !important;}
+.tbtn{width:68px;height:68px;min-width:68px;border-radius:50%;padding:7px 6px !important;justify-content:center;}
+.tbtn svg{width:24px;height:24px;}
+.tbtn.active{transform:translateY(-5px);}
+.toast{top:12px;}
 </style>
 </head>
 <body>
@@ -1800,10 +1846,11 @@ function launch() {
   ls.style.opacity = '0';
   ls.style.transform = 'scale(1.05)';
   
-  setTimeout(() => {
+    setTimeout(() => {
     ls.style.display = 'none';
     app.style.display = 'flex';
     app.classList.add('app-in');
+    setDockExpanded(false);
     if (typeof loadConfig === 'function') {
       loadConfig();
     }
@@ -1830,6 +1877,19 @@ window.setStatus = function(state, text) {
   
   if (dot) dot.className = 'sdot ' + state;
   if (stext) stext.textContent = text;
+};
+
+let dockExpanded = false;
+window.setDockExpanded = async function(expanded) {
+  dockExpanded = expanded;
+  document.body.classList.toggle('dock-expanded', expanded);
+  try {
+    if (typeof pywebview !== 'undefined' && pywebview.api && pywebview.api.set_dock_expanded) {
+      await pywebview.api.set_dock_expanded(expanded);
+    }
+  } catch (e) {
+    console.error('setDockExpanded error:', e);
+  }
 };
 
 // --- Helper: set a single input value based on its ID and config ---
@@ -2518,16 +2578,23 @@ function populateJesterModal(settings) {
 document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('.tbtn').forEach(btn => {
     btn.addEventListener('click', () => {
+      const wasActive = btn.classList.contains('active');
+      if (dockExpanded && wasActive) {
+        setDockExpanded(false);
+        return;
+      }
       document.querySelectorAll('.tbtn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       document.querySelectorAll('.panel-page').forEach(p => p.classList.remove('active'));
       const target = document.getElementById('tab-' + btn.dataset.tab);
       if (target) target.classList.add('active');
+      setDockExpanded(true);
     });
   });
 });
 
 window.addEventListener('load', () => {
+  document.body.classList.remove('dock-expanded');
   runLoader();
 });
 </script>
@@ -2541,11 +2608,13 @@ if __name__ == '__main__':
         title=f"Elixir Macro v{get_current_version()}",
         html=HTML,
         js_api=api,
-        width=900,
-        height=650,
+        width=DOCK_WIDTH,
+        height=EXPANDED_HEIGHT,
         resizable=False,
+        min_size=(DOCK_WIDTH, DOCK_HEIGHT),
         frameless=True,
         easy_drag=True,
+        on_top=True,
         text_select=False
     )
     api.window = window
