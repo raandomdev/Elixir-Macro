@@ -1,0 +1,28 @@
+{
+    "discord": {
+        "webhook": {
+            "enabled": "0",
+            "url": "",
+            "ping_id": "",
+            "ps_link": ""
+        }
+    },
+    "enable_aura_detection": "1",
+    "biome_detection": "1",
+    "biome_alerts": {
+        "NORMAL": "1",
+        "WINDY": "0",
+        "RAINY": "0",
+        "SNOWY": "0",
+        "SAND STORM": "0",
+        "HELL": "0",
+        "STARFALL": "0",
+        "HEAVEN": "0",
+        "CORRUPTION": "0",
+        "NULL": "0",
+        "GLITCHED": "0",
+        "DREAMSPACE": "0",
+        "CYBERSPACE": "0",
+        "THE CITADEL OF ORDERS": "0"
+    }
+}

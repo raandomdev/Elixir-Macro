@@ -1,53 +1,44 @@
-# Elixir-Macro
-A Sol's RNG based macro, basic and best to use.
+# Elixir Macro - Cross-Platform Setup
 
+## macOS Setup
 
-Yes — under the Apache 2.0 license, *you absolutely can* update (modify) any code — including macros — *regardless of the original owner's current approval*. The license grants a broad, irrevocable copyright and patent license to:
+To run Elixir Macro on macOS, follow these steps:
 
-1. **Reproduce**
-2. **Prepare derivative works**
-3. **Distribute** those works
-   …*without needing further permission* ([apache.org][1]).
+### 1. Install Python Dependencies
+```bash
+pip install -r requirements.txt
+```
 
----
+### 2. Install Tesseract OCR
+```bash
+brew install tesseract
+```
 
-### ✅ What You Must Do Under Apache 2.0
+### 3. Install Additional Libraries
+```bash
+pip install mss ttkbootstrap
+```
 
-Section 4 of the license outlines your obligations when distributing modified code ([en.wikipedia.org][2]):
+### 4. Run the Application
+```bash
+python app.pyw
+```
 
-* **Include a copy of the full Apache 2.0 license** with your distribution.
-* **Mark any modified files** clearly with a prominent notice that *you changed them*.
-* **Preserve existing copyright, patent, trademark, and attribution notices** from the original code.
-* **If the original has a NOTICE file**, include its contents (or relevant excerpts) alongside it in your derivative work.
+## Windows Setup
 
----
+The application should work out of the box on Windows. For OCR optimization, the app automatically reduces image size on Windows to improve performance.
 
-### ❌ You Cannot:
+## OCR Functionality
 
-* Remove or falsify the original authors’ copyright or license notices.
-* Omit notices that indicate changes you made.
+The app includes OCR capabilities for reading text from the screen. To use OCR:
 
----
+1. Configure OCR regions in the settings modals
+2. The app will automatically detect and read text from specified screen areas
+3. On Windows, OCR is optimized for performance by downscaling images
+4. On macOS, ensure Tesseract is installed for OCR to work
 
-### ✅ You Can:
+## Troubleshooting
 
-* Modify any part of the code.
-* Distribute your modified version under any license of your choosing **as long as** you continue to comply with the original Apache 2.0 terms concerning the untouched parts. You *can* even use a different license (e.g., proprietary) for your modifications *on top of* the Apache-compliant redistributed portions ([fossa.com][3], [apache.org][1], [reddit.com][4], [mend.io][5]).
-
----
-
-### TL;DR
-
-* The Apache 2.0 license **gives you the right** to modify and redistribute the code without needing the owner's explicit permission for each change.
-* **You’re legally bound** to carry forward the original license and copyright notices, **state your changes**, and include the NOTICE file if present.
-
-Let me know if you'd like help drafting your license headers or arranging your NOTICE file!
-
-[1]: https://www.apache.org/licenses/LICENSE-2.0?utm_source=chatgpt.com "Apache License, Version 2.0"
-[2]: https://en.wikipedia.org/wiki/Apache_License?utm_source=chatgpt.com "Apache License"
-[3]: https://fossa.com/blog/open-source-licenses-101-apache-license-2-0/?utm_source=chatgpt.com "Open Source Licenses 101: Apache License 2.0 | FOSSA Blog"
-[4]: https://www.reddit.com/r/SoftwareEngineering/comments/1aw8evp/changing_the_author_on_apache_20_license/?utm_source=chatgpt.com "Changing the author on Apache 2.0 license : r/SoftwareEngineering"
-[5]: https://www.mend.io/blog/top-10-apache-license-questions-answered/?utm_source=chatgpt.com "Top 10 Questions About The Apache License - Mend.io"
-
-## TOOK THIS README FROM [GITHUB USER](https://github.com/xVapure/Noteab-Macro/blob/main/Notice%20to%20people%20telling%20me%20I%20cannot%20update%20Noteab%20macro.txt)
-Credits to them for using it.
+- If OCR doesn't work, check that Tesseract is installed
+- On macOS, some Windows-specific features may not be available
+- Screen capture uses MSS for cross-platform compatibility
